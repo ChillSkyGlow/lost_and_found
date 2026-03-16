@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修改信息 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body id="page-edit-listing">
+
+    <header class="main-header">
+        <h1>修改信息</h1>
+        <nav>
+            <a href="profile.html">返回个人中心</a>
+            <a href="#" id="logout-btn">登出</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="form-container">
+            <h2>编辑物品信息</h2>
+            <div id="edit-message-box"></div>
+            
+            <form id="edit-form">
+                <!-- Hidden fields to store IDs -->
+                <input type="hidden" id="listing_id" name="listing_id">
+                <input type="hidden" id="type" name="type">
+
+                <div class="form-group">
+                    <label>信息类型 (不可修改)</label>
+                    <p id="type-display" style="font-weight: bold;"></p>
+                </div>
+                <div class="form-group">
+                    <label for="item-name">物品名称</label>
+                    <input type="text" id="item-name" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="description">详细描述</label>
+                    <textarea id="description" name="description" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="location-details">地点详情</label>
+                    <input type="text" id="location-details" name="location_details" required>
+                </div>
+
+                <div class="form-group">
+                    <label>在地图上标记位置 (请点击地图)</label>
+                    <div id="map-container" style="height: 400px; width: 100%; border: 1px solid #ddd;"></div>
+                    <!-- 这个隐藏输入框用于存储坐标并随表单提交 -->
+                    <input type="hidden" id="location-coordinates" name="location_coordinates">
+                </div>
+
+                <div class="form-group">
+                    <label for="event-time">丢失/拾获时间</label>
+                    <input type="datetime-local" id="event-time" name="event_time" required>
+                </div>
+                <div class="form-group">
+                    <label for="image">更新图片 (留空则不修改)</label>
+                    <img id="current-image" src="" alt="Current Image" style="max-width: 100px; display: block; margin-bottom: 10px;">
+                    <input type="file" id="image" name="image" accept="image/*">
+                </div>
+                <button type="submit">确认修改</button>
+            </form>
+        </div>
+    </main>
+    
+    <script type="module" src="pages/edit-listing.js"></script>
+</body>
+</html>

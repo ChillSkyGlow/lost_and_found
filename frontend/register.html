@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body id="page-register">
+    <div class="form-container">
+        <h2>创建账户</h2>
+        <div id="message-box"></div>
+        <form id="register-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="email">邮箱</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">确认密码</label>
+                <input type="password" id="confirm-password" name="confirm_password" required>
+            </div>
+            <div class="form-group">
+                <label for="security-question">安全问题</label>
+                <input type="text" id="security-question" name="security_question" placeholder="例如：我的小学名称是？" required>
+            </div>
+            <div class="form-group">
+                <label for="security-answer">问题答案</label>
+                <input type="text" id="security-answer" name="security_answer" required>
+            </div>
+            <button type="submit">注册</button>
+        </form>
+        <a href="login.html" class="form-link">已有账户？登录</a>
+    </div>
+
+    <div id="verification-section" class="form-container" style="display: none;">
+        <h2>验证您的邮箱</h2>
+        <p>我们已经向您的邮箱发送了一个验证码，请在下方输入以完成注册。</p>
+        <p id="verification-email-display"></p>
+        <div id="verification-message" class="message"></div>
+        <form id="verification-form">
+            <div class="form-group">
+                <label for="verification-code">验证码</label>
+                <input type="text" id="verification-code" name="verification-code" required>
+            </div>
+            <button type="submit" class="button">完成验证</button>
+            <button type="button" id="resend-code-btn" class="button-link">没有收到？重发验证码</button>
+        </form>
+    </div>
+
+    <script type="module" src="pages/register.js"></script>
+</body>
+</html>

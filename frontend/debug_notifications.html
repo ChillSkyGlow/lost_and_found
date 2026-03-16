@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匹配通知调试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>匹配通知调试</h1>
+    
+    <div id="loading">加载中...</div>
+    
+    <div id="content" style="display:none;">
+        <button id="refresh">刷新数据</button>
+        <button id="fix">修复缺失通知</button>
+        
+        <h2>现有通知</h2>
+        <table id="notifications-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>接收用户</th>
+                    <th>物品ID</th>
+                    <th>物品类型</th>
+                    <th>物品名称</th>
+                    <th>物品所有者</th>
+                    <th>已读</th>
+                    <th>创建时间</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        
+        <h2>匹配情况</h2>
+        <table id="matches-table">
+            <thead>
+                <tr>
+                    <th>失物ID</th>
+                    <th>失物名称</th>
+                    <th>失物用户</th>
+                    <th>拾物ID</th>
+                    <th>拾物名称</th>
+                    <th>拾物用户</th>
+                    <th>失物用户通知</th>
+                    <th>拾物用户通知</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        
+        <h2>缺失通知</h2>
+        <table id="missing-table">
+            <thead>
+                <tr>
+                    <th>用户ID</th>
+                    <th>用户名</th>
+                    <th>物品ID</th>
+                    <th>物品类型</th>
+                    <th>物品名称</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchData();
+            
+            document.getElementById('refresh').addEventListener('click', fetchData);
+            document.getElementById('fix').addEventListener('click', fixNotifications);
+        });
+        
+        function fetchData(fix = false) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('content').style.display = 'none';
+            
+            const url = fix ? '../backend/api/debug_notifications.php?fix=true' : '../backend/api/debug_notifications.php';
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayData(data.data);
+                    } else {
+                        alert('获取数据失败: ' + data.message);
+                    }
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('content').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('发生错误: ' + error);
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
+        
+        function fixNotifications() {
+            if (confirm('确定要修复缺失的通知吗？')) {
+                fetchData(true);
+            }
+        }
+        
+        function displayData(data) {
+            // 显示通知
+            const notificationsTable = document.querySelector('#notifications-table tbody');
+            notificationsTable.innerHTML = '';
+            
+            if (data.notifications && data.notifications.length > 0) {
+                data.notifications.forEach(notification => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${notification.id}</td>
+                        <td>${notification.username} (ID: ${notification.user_id})</td>
+                        <td>${notification.listing_id}</td>
+                        <td>${notification.listing_type}</td>
+                        <td>${notification.item_name}</td>
+                        <td>${notification.owner_name} (ID: ${notification.owner_id})</td>
+                        <td>${notification.is_read == 1 ? '是' : '否'}</td>
+                        <td>${notification.created_at}</td>
+                    `;
+                    notificationsTable.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="8">没有通知数据</td>';
+                notificationsTable.appendChild(row);
+            }
+            
+            // 显示匹配情况
+            const matchesTable = document.querySelector('#matches-table tbody');
+            matchesTable.innerHTML = '';
+            
+            if (data.matches && data.matches.length > 0) {
+                data.matches.forEach(match => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${match.lost_listing_id}</td>
+                        <td>${match.lost_item}</td>
+                        <td>${match.lost_username} (ID: ${match.lost_user_id})</td>
+                        <td>${match.found_listing_id}</td>
+                        <td>${match.found_item}</td>
+                        <td>${match.found_username} (ID: ${match.found_user_id})</td>
+                        <td class="${match.lost_user_notified ? 'success' : 'error'}">${match.lost_user_notified ? '已通知' : '未通知'}</td>
+                        <td class="${match.found_user_notified ? 'success' : 'error'}">${match.found_user_notified ? '已通知' : '未通知'}</td>
+                    `;
+                    matchesTable.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="8">没有匹配数据</td>';
+                matchesTable.appendChild(row);
+            }
+            
+            // 显示缺失通知
+            const missingTable = document.querySelector('#missing-table tbody');
+            missingTable.innerHTML = '';
+            
+            if (data.missing_notifications && data.missing_notifications.length > 0) {
+                data.missing_notifications.forEach(missing => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${missing.user_id}</td>
+                        <td>${missing.username}</td>
+                        <td>${missing.listing_id}</td>
+                        <td>${missing.listing_type}</td>
+                        <td>${missing.item_name}</td>
+                    `;
+                    missingTable.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="5">没有缺失通知</td>';
+                missingTable.appendChild(row);
+            }
+            
+            // 显示修复结果
+            if (data.fixed_count !== undefined) {
+                alert(`修复完成！已添加 ${data.fixed_count} 条缺失通知。`);
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注销账户</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="form-container">
+        <h2>注销账户</h2>
+        <p>这是一个非常危险的操作。为了确认是您本人操作，我们需要验证您的身份。</p>
+        
+        <div id="message-box" class="message"></div>
+        
+        <button id="send-code-btn" class="button">第一步：发送验证码到我的邮箱</button>
+
+        <form id="delete-form" style="display: none;">
+            <p>我们已向您的邮箱发送了验证码，请输入以继续。</p>
+            <div class="form-group">
+                <label for="verification-code">邮箱验证码</label>
+                <input type="text" id="verification-code" required>
+            </div>
+            <button type="submit" class="button button-danger">第二步：确认注销账户</button>
+        </form>
+    </div>
+
+    <script type="module" src="pages/delete_account.js"></script>
+</body>
+</html> 

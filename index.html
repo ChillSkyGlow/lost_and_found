@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欢迎 - 失物招领平台</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700&display=swap');
+
+        :root {
+            --primary-color: #4a90e2;
+            --background-color: #f0f2f5;
+            --text-color: #333;
+            --card-background: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: var(--background-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--text-color);
+        }
+
+        .container {
+            text-align: center;
+            background-color: var(--card-background);
+            padding: 50px 60px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px var(--shadow-color);
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+        }
+        
+        .container:hover {
+            transform: translateY(-25px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        p {
+            font-size: 1.1em;
+            color: #666;
+            margin-bottom: 40px;
+        }
+
+        .enter-button {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: #fff;
+            padding: 15px 40px;
+            text-decoration: none;
+            font-size: 1.2em;
+            font-weight: 400;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+        }
+
+        .enter-button:hover {
+            background-color: #357abd;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>欢迎使用失物招领平台</h1>
+        <p>在这里，每一次寻找都有了方向，每一次拾起都传递着温暖。</p>
+        <a href="frontend/index.html" class="enter-button">进入平台</a>
+    </div>
+
+</body>
+</html> 

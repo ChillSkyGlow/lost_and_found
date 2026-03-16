@@ -1,0 +1,14 @@
+/* 导航栏样式 */
+#user-nav, #guest-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* 当屏幕宽度较小时调整导航栏样式 */
+@media (max-width: 768px) {
+    #user-nav, #guest-nav {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+} 

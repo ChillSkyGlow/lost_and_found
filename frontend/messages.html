@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息中心 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+</head>
+<body id="page-messages">
+    <header class="main-header">
+        <h1>消息中心</h1>
+        <nav>
+            <div id="user-nav" style="display: none; position: relative;">
+                <a href="index.html" class="nav-button">返回主页</a>
+                <a href="profile.html">个人中心</a>
+                <a href="#" id="logout-btn">登出</a>
+            </div>
+            <div id="guest-nav">
+                <a href="login.html" class="nav-button">登录</a>
+                <a href="register.html">注册</a>
+            </div>
+        </nav>
+    </header>
+    <main>
+        <section class="profile-section" id="messages-section">
+            <h2>我的消息</h2>
+            
+            <div class="message-container">
+                <div class="message-category">
+                    <h3>评论消息</h3>
+                    <div id="comment-messages-list" class="messages-list">
+                        <p>正在加载评论消息...</p>
+                    </div>
+                </div>
+                
+                <div class="message-category">
+                    <h3>匹配消息</h3>
+                    <div id="match-messages-list" class="messages-list">
+                        <p>正在加载匹配消息...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script type="module" src="pages/messages.js"></script>
+</body>
+</html> 

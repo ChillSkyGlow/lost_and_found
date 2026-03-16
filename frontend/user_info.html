@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人信息 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body id="page-user-info">
+
+    <header class="main-header">
+        <h1>个人信息</h1>
+        <nav id="user-nav" style="display: flex;">
+            <a href="profile.html">返回个人中心</a>
+            <a href="#" id="logout-btn">登出</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 修改个人资料 -->
+        <div class="form-container info-section">
+            <h3>修改个人资料</h3>
+            <div id="profile-message-box"></div>
+            <form id="update-profile-form">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">邮箱</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <button type="submit" id="update-profile-btn" class="button">更新资料</button>
+            </form>
+
+            <hr>
+
+            <div class="delete-account-section">
+                <h3>注销账户</h3>
+                <p>注销账户是一个不可逆的操作，您的所有个人信息、发布的物品和评论都将被永久删除。请谨慎操作。</p>
+                <a href="delete_account.html" class="button button-danger">我已了解，前往注销</a>
+            </div>
+        </div>
+
+        <!-- 修改密码 -->
+        <div class="form-container info-section">
+            <h3>修改密码</h3>
+            <div id="password-message-box"></div>
+            <form id="change-password-form">
+                <div class="form-group">
+                    <label for="current-password">当前密码</label>
+                    <input type="password" id="current-password" name="current_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">新密码</label>
+                    <input type="password" id="new-password" name="new_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-new-password">确认新密码</label>
+                    <input type="password" id="confirm-new-password" required>
+                </div>
+                <button type="submit">确认修改密码</button>
+            </form>
+        </div>
+        
+        <!-- 修改安全问题 -->
+        <div class="form-container info-section">
+            <h3>修改安全问题</h3>
+            <div id="security-message-box"></div>
+            <form id="change-security-form">
+                <div class="form-group">
+                    <label>当前安全问题:</label>
+                    <p id="current-security-question" class="current-info-display">加载中...</p>
+                </div>
+                <div class="form-group">
+                    <label for="sq-current-password">请输入当前密码以验证身份</label>
+                    <input type="password" id="sq-current-password" name="current_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-security-question">新安全问题</label>
+                    <input type="text" id="new-security-question" name="new_question" required>
+                </div>
+                 <div class="form-group">
+                    <label for="new-security-answer">新安全答案</label>
+                    <input type="text" id="new-security-answer" name="new_answer" required>
+                </div>
+                <button type="submit">确认修改安全问题</button>
+            </form>
+        </div>
+    </main>
+    
+    <script type="module" src="pages/user_info.js"></script>
+</body>
+</html>

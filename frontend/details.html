@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- 天地图API,请将YOUR_API修改为你的API -->
+    <script src="https://api.tianditu.gov.cn/api?v=4.0&tk=YOUR_API" type="text/javascript"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物品详情 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+</head>
+<body id="page-details">
+
+    <header class="main-header">
+        <h1>失物招领平台</h1>
+        <nav>
+            <!-- 已登录用户显示 -->
+            <div id="user-nav" style="display: none;">
+            <a href="index.html" class="nav-button">返回主页</a>
+            <a href="profile.html">个人中心</a>
+            <a href="#" id="logout-btn">登出</a>
+            </div>
+            
+            <!-- 未登录用户显示 -->
+            <div id="guest-nav">
+                <a href="index.html" class="nav-button">返回主页</a>
+                <a href="login.html">登录</a>
+                <a href="register.html">注册</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 详情容器 -->
+        <div id="details-container" class="details-section">
+            <!-- 物品详情将通过JS动态插入这里 -->
+            
+            <p>正在加载详情...</p>
+        </div>
+        <div id="details-map-container" style="height: 300px; width: 100%; margin-top: 1rem; border: 1px solid #ddd;"></div>
+
+        <!-- 评论区 -->
+        <div id="comments-section" class="comments-section">
+            <h2>评论区</h2>
+            <div id="comments-list">
+                <!-- 评论列表将通过JS动态插入这里 -->
+            </div>
+            
+            <!-- 发表评论表单 -->
+            <div class="comment-form-container">
+                <h3>发表评论</h3>
+                <div id="comment-message-box"></div>
+                <form id="comment-form">
+                    <textarea name="content" placeholder="在此输入您的评论..." rows="4" required></textarea>
+                    <button type="submit">提交评论</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="pages/details.js"></script>
+</body>
+</html>

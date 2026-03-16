@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 失物招领系统</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+</head>
+<body id="page-profile">
+
+    <header class="main-header">
+        <h1>个人中心</h1>
+        <nav>
+            <!-- 已登录用户显示 -->
+            <div id="user-nav">
+            <a href="index.html" class="nav-button">返回主页</a>
+            <a href="user_info.html">个人信息</a> 
+            <a href="#" id="logout-btn">登出</a>
+            </div>
+            
+            <!-- 未登录用户显示 -->
+            <div id="guest-nav" style="display: none;">
+                <a href="index.html" class="nav-button">返回主页</a>
+                <a href="login.html">登录</a>
+                <a href="register.html">注册</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="profile-section">
+            <h2>我发布的失物信息</h2>
+            <div class="status-category">
+                <h3>进行中 (等待找回)</h3>
+                <div id="lost-pending-list" class="listings-container">
+                    <p>加载中...</p>
+                </div>
+            </div>
+            <div class="status-category">
+                <h3>已完成 (已找回)</h3>
+                <div id="lost-solved-list" class="listings-container">
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2>我发布的拾物信息</h2>
+            <div class="status-category">
+                <h3>进行中 (等待认领)</h3>
+                <div id="found-unclaimed-list" class="listings-container">
+                    <p>加载中...</p>
+                </div>
+            </div>
+            <div class="status-category">
+                <h3>已完成 (已认领)</h3>
+                <div id="found-claimed-list" class="listings-container">
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2>匹配度较高的物品</h2>
+            <div class="status-category">
+                <div id="matched-list" class="listings-container">
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="pages/profile.js"></script>
+</body>
+</html>
