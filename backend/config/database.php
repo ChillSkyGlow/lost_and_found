@@ -1,6 +1,14 @@
 <?php
 // backend/config/database.php
 
+// 引入 Composer 自动加载文件并加载 .env 环境变量
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+if (file_exists(__DIR__ . '/../../.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../');
+    $dotenv->safeLoad();
+}
+
 // 设置错误报告 - 在生产环境中关闭显示错误
 error_reporting(E_ERROR); // 只记录致命错误
 ini_set('display_errors', 0); // 关闭错误显示
@@ -33,10 +41,10 @@ if (!function_exists('db_send_json_response')) {
  * @return mysqli 数据库连接对象
  */
 function get_db_connection() {
-    $host = 'localhost';// 替换为你的数据库主机
-    $db_name = 'DATABASE_NAME'; // 替换为你的数据库名称
-    $username = 'DATABASE_USERNAME'; // 替换为你的数据库用户名
-    $password = 'DATABASE_PASSWORD'; // 替换为你的数据库密码
+    $host = $_ENV['DB_HOST'] ?? 'localhost';// 替换为你的数据库主机
+    $db_name = $_ENV['DB_NAME'] ?? 'DATABASE_NAME'; // 替换为你的数据库名称
+    $username = $_ENV['DB_USER'] ?? 'DATABASE_USERNAME'; // 替换为你的数据库用户名
+    $password = $_ENV['DB_PASS'] ?? 'DATABASE_PASSWORD'; // 替换为你的数据库密码
     
     try {
         // 创建新的数据库连接
