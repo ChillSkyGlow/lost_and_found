@@ -16,6 +16,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const profileForm = document.getElementById("update-profile-form");
     const profileMessageBox = document.getElementById("profile-message-box");
     const usernameInput = document.getElementById("username");
+    const realNameInput = document.getElementById("real_name");
+    const studentIdInput = document.getElementById("student_id");
+    const phoneInput = document.getElementById("phone");
     const emailInput = document.getElementById("email");
 
     // --- Password Form ---
@@ -32,7 +35,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             const result = await getUserInfo();
             if (result.success) {
-                usernameInput.value = result.data.username;
+                usernameInput.value = result.data.username || '';
+                realNameInput.value = result.data.real_name || '';
+                studentIdInput.value = result.data.student_id || '';
+                phoneInput.value = result.data.phone || '';
                 emailInput.value = result.data.email;
                 currentQuestionDisplay.textContent = result.data.security_question;
             } else {
@@ -53,7 +59,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             const result = await updateProfile({
                 username: usernameInput.value,
-                email: emailInput.value
+                email: emailInput.value,
+                real_name: realNameInput.value,
+                student_id: studentIdInput.value,
+                phone: phoneInput.value
             });
             if (result.success) {
                 showMessage(profileMessageBox, "success", "个人资料更新成功！即将自动登出...");

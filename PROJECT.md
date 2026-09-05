@@ -39,7 +39,7 @@
 
 | 编号 | 功能需求 | 需求详细描述（来自正式基线） | 当前实现状态 |
 |------|---------|-----------------------------|-------------|
-| 1 | **用户注册与登录功能** | 用户注册时填写姓名、学号、联系电话等信息，登录后可以发布失物或招领信息。 | **已实现**（register / login / check_session；当前前端字段：username / email / password / 安全问题，学号 & 联系电话源码未强制要求） |
+| 1 | **用户注册与登录功能** | 用户注册时填写姓名、学号、联系电话等信息，登录后可以发布失物或招领信息。 | **已实现**（register / login / check_session / verify_email；注册前端字段：username / real_name / student_id / phone / email / password / 安全问题；login.php 已强制校验邮箱 is_verified=1 后方可登录；user_info 可编辑姓名/学号/电话） |
 | 2 | **失物信息发布功能** | 用户可发布丢失物品的信息，包括：物品名称、物品类别、丢失时间、丢失地点、物品特征、图片等。 | **已实现**（publish_secure.php：支持 item_name / category / lost_date / location / description / 图片上传 / 地图坐标 lng,lat） |
 | 3 | **招领信息发布功能** | 用户可发布捡到物品的信息，包括：拾取时间、拾取地点、物品类别、物品描述、图片等。 | **已实现**（同上，通过 listing_type = 'found' 区分） |
 | 4 | **信息查询功能** | 按物品名称 / 物品类别 / 地点 / 发布时间查询；支持模糊查询；支持多条件查询。 | **已实现**（get_listings.php：search 模糊匹配 item_name + description LIKE；filter 分类；date 日期；lat/lon/radius 地理 Haversine；sort 排序；多条件可任意组合） |

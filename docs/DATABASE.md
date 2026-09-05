@@ -50,6 +50,9 @@ erDiagram
     users {
         int user_id PK
         varchar username UK
+        varchar real_name
+        varchar student_id UK
+        varchar phone
         varchar password_hash
         varchar email UK
         varchar role
@@ -184,6 +187,9 @@ erDiagram
 |---|---|---|---|---|
 | `user_id` | `int` | NOT NULL | AUTO_INCREMENT | 主键 |
 | `username` | `varchar(50)` | NOT NULL | — | 用户名，**唯一键** |
+| `real_name` | `varchar(50)` | YES | `NULL` | 姓名（正式需求「用户注册与登录」2026-09-05 新增） |
+| `student_id` | `varchar(50)` | YES | `NULL` | 学号（正式需求新增；**唯一键**） |
+| `phone` | `varchar(20)` | YES | `NULL` | 联系电话（正式需求新增；中国大陆手机/固话校验） |
 | `password_hash` | `varchar(255)` | NOT NULL | — | `password_hash()` 结果哈希 |
 | `email` | `varchar(100)` | NOT NULL | — | 邮箱，**唯一键** |
 | `role` | `varchar(20)` | YES | `'user'` | 角色，非ENUM；实际用值 `'user'` / `'admin'` |
@@ -191,7 +197,7 @@ erDiagram
 | `security_answer` | `varchar(255)` | YES | `NULL` | 安全答案（找回密码用） |
 | `verification_code` | `varchar(10)` | YES | `NULL` | 邮箱验证码 |
 | `verification_code_expires_at` | `timestamp` | YES | `NULL` | 验证码过期时间 |
-| `is_verified` | `tinyint(1)` | NOT NULL | `'0'` | 邮箱是否已验证标记 |
+| `is_verified` | `tinyint(1)` | NOT NULL | `'0'` | 邮箱是否已验证标记；verify_email 验证成功后被 UPDATE 为 1；login.php 以该字段=1 作为放行登录条件之一 |
 | `created_at` | `timestamp` | YES | `CURRENT_TIMESTAMP` | 创建时间 |
 
 #### 主键
@@ -200,12 +206,13 @@ erDiagram
 #### 唯一键
 - `UNIQUE KEY username (username)`
 - `UNIQUE KEY email (email)`
+- `UNIQUE KEY student_id (student_id)`（正式需求新增）
 
 #### 外键
 - **无**（顶级父表）
 
 #### 索引
-- 仅主键和唯一键（InnoDB 自动为其建索引）
+- 主键 + 三个唯一键（InnoDB 自动建索引）
 
 #### AUTO_INCREMENT 当前值
 - `AUTO_INCREMENT=23`
@@ -213,7 +220,16 @@ erDiagram
 #### 备注
 - 无外键；是所有子表的父级表。
 - `role` 字段是 `varchar(20)` 而非 ENUM，实际使用值为 `'user'` / `'admin'`。
-- `is_verified` 字段：源码中登录逻辑**未实际使用**该字段判断；注册后保持默认 0；`verify_email.php` 验证通过后仅更新 `verification_code=NULL` 和 `expires=NULL`，**未显式 UPDATE `is_verified=1`**，该字段基本不被系统使用。
+- `real_name` / `student_id` / `phone` 三列为 2026-09-05 实现「功能1 用户注册与登录」时新增；对已有旧用户该三列允许为 NULL，新建用户在 register.php 中被校验必填。
+- `is_verified` 字段：2026-09-05 起 login.php 以 `is_verified=1 AND verification_code IS NULL` 作为登录放行条件；verify_email.php 验证通过后 UPDATE `is_verified=1, verification_code=NULL, verification_code_expires_at=NULL`。
+- **对已有数据库的迁移命令（不破坏数据，推荐执行）：**
+  ```sql
+  ALTER TABLE users
+    ADD COLUMN real_name varchar(50) DEFAULT NULL COMMENT '姓名' AFTER username,
+    ADD COLUMN student_id varchar(50) DEFAULT NULL COMMENT '学号' AFTER real_name,
+    ADD COLUMN phone varchar(20) DEFAULT NULL COMMENT '联系电话' AFTER student_id,
+    ADD UNIQUE KEY student_id (student_id);
+  ```
 
 ---
 

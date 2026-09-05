@@ -256,6 +256,9 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `user_id` int NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
+  `real_name` varchar(50) DEFAULT NULL COMMENT '姓名（正式需求新增：用户实名）',
+  `student_id` varchar(50) DEFAULT NULL COMMENT '学号（正式需求新增：校园学号；UNIQUE）',
+  `phone` varchar(20) DEFAULT NULL COMMENT '联系电话（正式需求新增）',
   `password_hash` varchar(255) NOT NULL,
   `email` varchar(100) NOT NULL,
   `role` varchar(20) DEFAULT 'user',
@@ -267,7 +270,8 @@ CREATE TABLE `users` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `username` (`username`),
-  UNIQUE KEY `email` (`email`)
+  UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `student_id` (`student_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

@@ -12,20 +12,32 @@
         <div id="message-box"></div>
         <form id="register-form">
             <div class="form-group">
-                <label for="username">用户名</label>
-                <input type="text" id="username" name="username" required>
+                <label for="username">用户名（登录用）</label>
+                <input type="text" id="username" name="username" required minlength="3" maxlength="50" pattern="[a-zA-Z0-9_]+">
+            </div>
+            <div class="form-group">
+                <label for="real_name">姓名</label>
+                <input type="text" id="real_name" name="real_name" required minlength="2" maxlength="50">
+            </div>
+            <div class="form-group">
+                <label for="student_id">学号</label>
+                <input type="text" id="student_id" name="student_id" required minlength="4" maxlength="50" pattern="[a-zA-Z0-9\-_]+">
+            </div>
+            <div class="form-group">
+                <label for="phone">联系电话</label>
+                <input type="tel" id="phone" name="phone" required pattern="^1[3-9]\d{9}$|^0\d{2,3}-?\d{7,8}$" placeholder="例如：13800138000 或 010-12345678">
             </div>
             <div class="form-group">
                 <label for="email">邮箱</label>
                 <input type="email" id="email" name="email" required>
             </div>
             <div class="form-group">
-                <label for="password">密码</label>
-                <input type="password" id="password" name="password" required>
+                <label for="password">密码（至少8位）</label>
+                <input type="password" id="password" name="password" required minlength="8">
             </div>
             <div class="form-group">
                 <label for="confirm-password">确认密码</label>
-                <input type="password" id="confirm-password" name="confirm_password" required>
+                <input type="password" id="confirm-password" name="confirm_password" required minlength="8">
             </div>
             <div class="form-group">
                 <label for="security-question">安全问题</label>

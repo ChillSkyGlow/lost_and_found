@@ -57,8 +57,8 @@ try {
         exit;
     }
 
-    // 验证成功，清空验证码信息
-    $stmt_update = $conn->prepare("UPDATE users SET verification_code = NULL, verification_code_expires_at = NULL WHERE user_id = ?");
+    // 验证成功，清空验证码信息，并设置邮箱已验证标志
+    $stmt_update = $conn->prepare("UPDATE users SET verification_code = NULL, verification_code_expires_at = NULL, is_verified = 1 WHERE user_id = ?");
     $stmt_update->bind_param("i", $user['user_id']);
     $stmt_update->execute();
 

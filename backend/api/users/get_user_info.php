@@ -32,7 +32,7 @@ if (!isLoggedIn()) {
 $user_id = getCurrentUserId();
 
 $conn = get_db_connection();
-$stmt = $conn->prepare("SELECT username, email, security_question FROM users WHERE user_id = ?");
+$stmt = $conn->prepare("SELECT username, real_name, student_id, phone, email, security_question FROM users WHERE user_id = ?");
 $stmt->bind_param('i', $user_id);
 $stmt->execute();
 $result = $stmt->get_result();

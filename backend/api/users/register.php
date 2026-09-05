@@ -19,16 +19,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 if (
     empty($_POST['username']) ||
+    empty($_POST['real_name']) ||
+    empty($_POST['student_id']) ||
+    empty($_POST['phone']) ||
     empty($_POST['password']) ||
     empty($_POST['email']) ||
     empty($_POST['security_question']) ||
     empty($_POST['security_answer'])
 ) {
     http_response_code(400);
-    sendResponse(false, '所有字段都是必填的');
+    sendResponse(false, '所有字段都是必填的（含姓名、学号、联系电话）');
 }
 
 $username = trim($_POST['username']);
+$real_name = trim($_POST['real_name']);
+$student_id = trim($_POST['student_id']);
+$phone = trim($_POST['phone']);
 $password = $_POST['password'];
 $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
 $security_question = trim($_POST['security_question']);
@@ -38,6 +44,21 @@ $security_answer = trim($_POST['security_answer']);
 if (!preg_match('/^[a-zA-Z0-9_]{3,50}$/', $username)) {
     http_response_code(400);
     sendResponse(false, '用户名只能包含字母、数字和下划线，长度在3-50个字符之间');
+}
+
+if (mb_strlen($real_name) < 2 || mb_strlen($real_name) > 50) {
+    http_response_code(400);
+    sendResponse(false, '姓名长度必须在2-50个字符之间');
+}
+
+if (!preg_match('/^[a-zA-Z0-9\-_]{4,50}$/', $student_id)) {
+    http_response_code(400);
+    sendResponse(false, '学号格式不正确（长度4-50，支持字母、数字、-、_）');
+}
+
+if (!preg_match('/^1[3-9]\d{9}$/', $phone) && !preg_match('/^0\d{2,3}-?\d{7,8}$/', $phone)) {
+    http_response_code(400);
+    sendResponse(false, '联系电话格式不正确（中国大陆手机号或固定电话）');
 }
 
 if (!$email) {
@@ -60,15 +81,15 @@ if (strlen($security_answer) < 2 || strlen($security_answer) > 255) {
     sendResponse(false, '安全答案长度必须在2-255个字符之间');
 }
 
-// 检查用户名或邮箱是否已存在
-$stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ? OR email = ?");
-$stmt->bind_param("ss", $username, $email);
+// 检查用户名、邮箱或学号是否已存在
+$stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ? OR email = ? OR student_id = ?");
+$stmt->bind_param("sss", $username, $email, $student_id);
 $stmt->execute();
 $stmt->store_result();
 
 if ($stmt->num_rows > 0) {
     http_response_code(409);
-    sendResponse(false, '用户名或邮箱已被注册');
+    sendResponse(false, '用户名、邮箱或学号已被注册');
     $stmt->close();
     exit();
 }
@@ -83,12 +104,12 @@ $verification_code = rand(100000, 999999);
 $verification_code_expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
 
 // 准备插入新用户
-$sql = "INSERT INTO users (username, password_hash, email, security_question, security_answer, verification_code, verification_code_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+$sql = "INSERT INTO users (username, real_name, student_id, phone, password_hash, email, security_question, security_answer, verification_code, verification_code_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     sendResponse(false, '数据库查询准备失败: ' . $conn->error);
 }
-$stmt->bind_param("sssssis", $username, $password_hash, $email, $security_question, $security_answer_hash, $verification_code, $verification_code_expires_at);
+$stmt->bind_param("ssssssssis", $username, $real_name, $student_id, $phone, $password_hash, $email, $security_question, $security_answer_hash, $verification_code, $verification_code_expires_at);
 
 if ($stmt->execute()) {
     // 发送验证邮件

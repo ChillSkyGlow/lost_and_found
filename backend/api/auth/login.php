@@ -36,7 +36,7 @@ if (empty($username) || empty($password)) {
 $conn = get_db_connection();
 
 // 使用预处理语句来防止SQL注入
-$stmt = $conn->prepare("SELECT user_id, username, password_hash, verification_code FROM users WHERE username = ?");
+$stmt = $conn->prepare("SELECT user_id, username, password_hash, verification_code, is_verified FROM users WHERE username = ?");
 if (!$stmt) {
     // 如果prepare失败，这是一个服务器端问题
     http_response_code(500);
@@ -52,7 +52,12 @@ if ($result->num_rows === 1) {
 
     // 验证密码
     if (password_verify($password, $user['password_hash'])) {
-        
+
+        // 校验邮箱是否已完成验证（正式需求：登录后才允许发布失物/招领）
+        if ((int)$user['is_verified'] !== 1 || $user['verification_code'] !== null) {
+            http_response_code(403);
+            sendResponse(false, '邮箱尚未验证，请先完成邮箱验证再登录。');
+        }
 
         // 登录成功
         session_regenerate_id(true);

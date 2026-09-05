@@ -124,6 +124,13 @@
   "data": []
 }
 
+// HTTP 403 - 邮箱尚未验证（2026-09-05 新增强制校验）
+{
+  "success": false,
+  "message": "邮箱尚未验证，请先完成邮箱验证再登录。",
+  "data": []
+}
+
 // HTTP 500 - prepare 失败
 // 手动设置 500 状态码
 ```
@@ -131,7 +138,7 @@
 #### 数据库操作
 
 ```sql
-SELECT user_id, username, password_hash, verification_code 
+SELECT user_id, username, password_hash, verification_code, is_verified 
 FROM users 
 WHERE username = ?
 ```
@@ -141,7 +148,7 @@ WHERE username = ?
 - Session 安全配置：`cookie_httponly=1`, `use_only_cookies=1`, HTTPS 时设置 `cookie_secure`
 - 登录成功后执行 `session_regenerate_id(true)`
 - 写入 `$_SESSION['user_id']` 和 `$_SESSION['username']`
-- 查询了 `verification_code` 但并未使用判断，未验证邮箱可能仍能登录
+- **2026-09-05 起强制校验邮箱验证状态**：必须同时满足 `is_verified = 1` 且 `verification_code IS NULL` 才放行，否则返回 HTTP 403
 - 无登录失败次数限制
 - 不支持 JSON 请求体
 
@@ -270,13 +277,13 @@ WHERE username = ?
 
 ```sql
 -- 查询
-SELECT user_id, verification_code, verification_code_expires_at 
+SELECT user_id, verification_code, verification_code_expires_at, is_verified 
 FROM users 
 WHERE email = ?
 
--- 成功后更新
+-- 成功后更新（2026-09-05 起同时置位 is_verified）
 UPDATE users 
-SET verification_code = NULL, verification_code_expires_at = NULL 
+SET verification_code = NULL, verification_code_expires_at = NULL, is_verified = 1 
 WHERE user_id = ?
 ```
 
@@ -285,6 +292,8 @@ WHERE user_id = ?
 - 有效期比较使用 `DateTime` 类
 - 开启了 `display_errors=1` / `E_ALL`，生产环境有风险
 - 验证码使用 `!=` 宽松比较
+- **2026-09-05 起**：验证成功时同时将 `is_verified` 置为 `1`，配合 login.php 强制校验邮箱验证状态
+- 历史老用户若 `is_verified=0` 但 `verification_code` 已为 NULL，需手动执行迁移：`UPDATE users SET is_verified = 1 WHERE verification_code IS NULL`
 
 ---
 
@@ -417,6 +426,9 @@ WHERE user_id = ?
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | username | string | 是 | 正则 `^[a-zA-Z0-9_]{3,50}$` |
+| real_name | string | 是 | 姓名，mb_strlen 2-50 字符 |
+| student_id | string | 是 | 学号，正则 `^[a-zA-Z0-9\-_]{4,50}$`，UNIQUE 唯一 |
+| phone | string | 是 | 联系电话，中国大陆手机号 `^1[3-9]\d{9}$` 或固话 `^0\d{2,3}-?\d{7,8}$` |
 | password | string | 是 | 最少 8 字符 |
 | email | string | 是 | `FILTER_VALIDATE_EMAIL` |
 | security_question | string | 是 | 3-255 字符 |
@@ -454,13 +466,13 @@ WHERE user_id = ?
 // HTTP 400 - 格式失败
 {
   "success": false,
-  "message": "用户名格式不正确"  // 或其他具体格式错误
+  "message": "用户名格式不正确"  // 或其他具体格式错误：姓名/学号/联系电话/密码/邮箱/密保问题格式
 }
 
-// HTTP 409 - 用户名或邮箱冲突
+// HTTP 409 - 用户名/邮箱/学号冲突（2026-09-05 起新增学号查重）
 {
   "success": false,
-  "message": "用户名或邮箱已被注册"
+  "message": "用户名或邮箱或学号已被注册"
 }
 
 // HTTP 500 - 数据库错误
@@ -469,14 +481,14 @@ WHERE user_id = ?
 #### 数据库操作
 
 ```sql
--- 检查唯一性
-SELECT user_id FROM users WHERE username = ? OR email = ?
+-- 检查唯一性（2026-09-05 起加入 student_id 查重）
+SELECT user_id FROM users WHERE username = ? OR email = ? OR student_id = ?
 
--- 插入
+-- 插入（2026-09-05 起新增 real_name / student_id / phone 三列）
 INSERT INTO users 
-  (username, password_hash, email, security_question, security_answer, 
+  (username, real_name, student_id, phone, password_hash, email, security_question, security_answer, 
    verification_code, verification_code_expires_at) 
-VALUES (?, ?, ?, ?, ?, rand(6位), NOW()+10min)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, rand(6位), NOW()+10min)
 ```
 
 #### 备注
@@ -484,6 +496,7 @@ VALUES (?, ?, ?, ?, ?, rand(6位), NOW()+10min)
 - 验证码：`rand(6位)` + 10 分钟有效期
 - **邮件发送失败不中断注册**
 - 依赖：`database.php` / `helpers.php` / `mailer.php`
+- **2026-09-05 起**：新用户必须填写姓名、学号、联系电话三项正式需求基线字段；`student_id` 数据库层面有 UNIQUE KEY 防重复
 
 ---
 
@@ -507,6 +520,9 @@ VALUES (?, ?, ?, ?, ?, rand(6位), NOW()+10min)
   "message": "成功获取用户信息",
   "data": {
     "username": "xxx",
+    "real_name": "张三",
+    "student_id": "2023001001",
+    "phone": "13800138000",
     "email": "xxx@example.com",
     "security_question": "您的问题"
   }
@@ -534,7 +550,7 @@ VALUES (?, ?, ?, ?, ?, rand(6位), NOW()+10min)
 #### 数据库操作
 
 ```sql
-SELECT username, email, security_question 
+SELECT username, real_name, student_id, phone, email, security_question 
 FROM users 
 WHERE user_id = ?
 ```
@@ -542,6 +558,7 @@ WHERE user_id = ?
 #### 备注
 
 - 该文件内部重复定义了 `safeSendResponse` 函数，未复用全局 `sendResponse`
+- **2026-09-05 起**：返回 data 中增加 `real_name` / `student_id` / `phone` 三项正式需求基线字段
 
 ---
 
@@ -559,6 +576,9 @@ WHERE user_id = ?
 |---|---|---|---|
 | username | string | 是 | trim 后使用 |
 | email | string | 是 | `FILTER_VALIDATE_EMAIL` |
+| real_name | string | 是 | 姓名，mb_strlen 2-50 字符 |
+| student_id | string | 是 | 学号，正则 `^[a-zA-Z0-9\-_]{4,50}$` |
+| phone | string | 是 | 联系电话，手机号或固话正则 |
 
 > 声明支持 PUT，但实际仍读 `$_POST`，JSON PUT 不可靠
 
@@ -570,7 +590,10 @@ WHERE user_id = ?
   "message": "个人资料更新成功！",
   "data": {
     "username": "新用户名",
-    "email": "新邮箱"
+    "email": "新邮箱",
+    "real_name": "张三",
+    "student_id": "2023001001",
+    "phone": "13800138000"
   }
 }
 ```
@@ -587,13 +610,13 @@ WHERE user_id = ?
 // HTTP 400 - 空/格式错误
 {
   "success": false,
-  "message": "用户名和邮箱不能为空"  // 或具体格式错误
+  "message": "用户名和邮箱不能为空"  // 或具体格式错误：姓名/学号/联系电话格式不正确
 }
 
-// HTTP 409 - 冲突
+// HTTP 409 - 冲突（2026-09-05 起含学号冲突）
 {
   "success": false,
-  "message": "用户名或邮箱已被使用"
+  "message": "用户名或邮箱或学号已被使用"
 }
 
 // HTTP 500 - DB 错误
@@ -602,17 +625,18 @@ WHERE user_id = ?
 #### 数据库操作
 
 ```sql
--- 检查冲突（排除自己）
+-- 检查冲突（排除自己，2026-09-05 起加入 student_id 查重）
 SELECT user_id FROM users 
-WHERE (username = ? OR email = ?) AND user_id != ?
+WHERE (username = ? OR email = ? OR student_id = ?) AND user_id != ?
 
--- 更新
-UPDATE users SET username = ?, email = ? WHERE user_id = ?
+-- 更新（2026-09-05 起新增 real_name / student_id / phone 三列）
+UPDATE users SET username = ?, email = ?, real_name = ?, student_id = ?, phone = ? WHERE user_id = ?
 ```
 
 #### 备注
 
 - 更新成功后同时更新 `$_SESSION['username']`
+- **2026-09-05 起**：可同时编辑姓名、学号、联系电话三项正式需求基线字段；学号 UNIQUE 冲突会返回 HTTP 409
 
 ---
 
@@ -2364,9 +2388,9 @@ VALUES (?, ?, ?, 0)
 | `checkSession()` | GET | `auth/check_session.php` | - |
 | `login({username, password})` | POST | `auth/login.php` | FormData |
 | `logout()` | POST | `auth/logout.php` | - |
-| `register({5字段})` | POST | `users/register.php` | FormData |
+| `register({username, real_name, student_id, phone, password, email, security_question, security_answer})` | POST | `users/register.php` | FormData |
 | `getUserInfo()` | GET | `users/get_user_info.php` | - |
-| `updateProfile({username, email})` | POST | `users/update_profile.php` | FormData |
+| `updateProfile({username, email, real_name, student_id, phone})` | POST | `users/update_profile.php` | FormData |
 | `changePassword({current, new})` | POST | `users/change_password.php` | FormData |
 | `changeSecurityQuestion({current_pwd, new_q, new_a})` | POST | `users/change_security_question.php` | FormData |
 | `forgotPasswordStep1({email})` | POST | `users/forgot_password_step1.php` | FormData |
