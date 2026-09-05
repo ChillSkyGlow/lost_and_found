@@ -1258,14 +1258,14 @@ WHERE comment_id = ?
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| item_name | string | 是 | 物品名称 |
-| description | string | 是 | 物品描述 |
-| location_details | string | 是 | 位置详情 |
+| item_name | string | 是 | 物品名称，长度 1-100 字符（mb_strlen） |
+| description | string | 是 | 物品描述 / 物品特征丢失经过 |
+| location_details | string | 是 | 位置详情，长度 ≤ 255 字符 |
 | event_time | string | 是 | 丢失/拾获时间（datetime） |
 | listing_type | string | 是 | `"lost"` 或 `"found"` |
+| category | string | 是 | 物品类别，长度 1-50 字符；证件/电子产品/钥匙/书籍/衣物/箱包/文具/运动器材/其他（前端 select，后端兜底默认"其他"） |
 | location_coordinates | string | 否 | 默认空串，格式 `"lng,lat"`（天地图） |
-| category | string | 否 | 默认 `"其他"` |
-| image | file | 否 | `$_FILES['image']`，jpg/jpeg/png/gif |
+| image | file | 否 | `$_FILES['image']`，jpg/jpeg/png/gif（扩展名+finfo 真实 MIME+扩展名与 MIME 一致性三重关） |
 
 > 来源：`$_POST` + `$_FILES['image']`
 
@@ -1286,8 +1286,15 @@ WHERE comment_id = ?
 ```json
 // HTTP 405 - 方法错误
 // HTTP 401 - 未登录（"请先登录"）
-// HTTP 400 - 字段无效 / invalid listing type / 无效图片类型
-// HTTP 500 - 服务器错误
+// HTTP 400 - 字段缺少（"字段 'xxx' 是必需的"）
+// HTTP 400 - invalid listing type
+// HTTP 400 - 物品名称长度必须在 1-100 个字符之间
+// HTTP 400 - 地点详情长度不能超过 255 个字符
+// HTTP 400 - 物品类别长度必须在 1-50 个字符之间
+// HTTP 400 - 仅支持 JPG/JPEG/PNG/GIF 格式图片（扩展名）
+// HTTP 400 - 图片内容类型不合法，仅支持 JPG/JPEG/PNG/GIF（finfo 真实 MIME）
+// HTTP 400 - 图片扩展名与真实内容类型不一致（mime_to_ext 对照表）
+// HTTP 500 - 服务器错误（含 fileinfo 扩展缺失）
 ```
 
 #### 数据库操作
@@ -1296,8 +1303,11 @@ WHERE comment_id = ?
 -- 根据 listing_type 选择表
 INSERT INTO {lost_listings/found_listings}
   (user_id, item_name, description, location_details, location_coordinates,
-   event_time, image_file_path, status, category)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+   event_time, image_file_path, status, category, comment_is_updated)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+-- bind_param: "issssssssi" (int s s s s s s s int)
+--   i=user_id, s=item_name, s=description, s=location_details, s=location_coordinates,
+--   s=event_time, s=image_file_path, s=status, s=category, i=comment_is_updated(=0 显式)
 
 -- lost → status='pending'
 -- found → status='unclaimed'
@@ -1308,14 +1318,19 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 - 图片目录：`../../uploads/`（不存在则 `mkdir 0777`）
 - 图片文件名：`'img_' . uniqid('', true) . '.' . ext`
 - 图片保存路径格式：`uploads/filename.ext`（相对 project）
+- **图片上传三重安全关（AGENTS.md §21 强制）**：
+  1. 扩展名白名单：`{jpg,jpeg,png,gif}`
+  2. `finfo_open(FILEINFO_MIME_TYPE)` 真实内容 MIME ∈ `{image/jpeg,image/png,image/gif}`
+  3. 扩展名与 MIME 一致性（`$mime_to_ext` 表：image/jpeg↔jpg/jpeg，image/png↔png，image/gif↔gif）；.png 扩展名内容为 image/jpeg 会被拒绝
 - 匹配与邮件：调用 `find_and_notify_matches()`：
   - 查询对方表：`SELECT * FROM opposite_table WHERE item_name LIKE CONCAT('%',item_name,'%') LIMIT 10`
   - 双向发送 PHPMailer 邮件：失主→"您的失物可能已找到！"，拾主→"您发布的招领物品可能找到了失主！"
   - **邮件失败只 error_log，不影响主流程返回 success**
 - **此版本不写入 matched_notifications**
+- `comment_is_updated` 显式写入 `0`，不依赖数据库 `DEFAULT 0`
 - 错误处理：自定义 `exception_handler` + `error_handler` + `ob_start` 缓冲
 - `ini_set display_errors=0`，只记录 `E_ERROR`
-- **前端当前调用的是此 API**
+- **前端当前调用的是此 API**（`frontend/pages/publish.js` 直接 fetch 此文件，不走 `api/index.js` 的备用封装）
 
 ---
 

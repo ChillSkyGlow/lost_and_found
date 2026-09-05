@@ -81,6 +81,28 @@ try {
     $location_coordinates = isset($_POST['location_coordinates']) ? htmlspecialchars(strip_tags($_POST['location_coordinates'])) : '';
     $type = $_POST['listing_type']; // 'lost' or 'found'
 
+    // 字段长度校验（2026-09-05 功能2 新增，匹配 varchar 上限）
+    if (mb_strlen($item_name) < 1 || mb_strlen($item_name) > 100) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => '物品名称长度必须在 1-100 个字符之间']);
+        exit;
+    }
+    if (mb_strlen($location_details) > 255) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => '地点详情长度不能超过 255 个字符']);
+        exit;
+    }
+    // 设置默认分类并校验长度
+    $category = isset($_POST['category']) ? htmlspecialchars(strip_tags($_POST['category'])) : '其他';
+    if (mb_strlen($category) < 1 || mb_strlen($category) > 50) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => '物品类别长度必须在 1-50 个字符之间']);
+        exit;
+    }
+
     // 验证发布类型
     if ($type !== 'lost' && $type !== 'found') {
         header('Content-Type: application/json');
@@ -109,7 +131,7 @@ try {
             }
         }
 
-        // 检查文件类型
+        // 检查扩展名（第一关）
         $file_info = pathinfo($_FILES['image']['name']);
         $file_ext = strtolower($file_info['extension']);
         $allowed_exts = ['jpg', 'jpeg', 'png', 'gif'];
@@ -117,7 +139,33 @@ try {
         if (!in_array($file_ext, $allowed_exts)) {
             header('Content-Type: application/json');
             http_response_code(400); // Bad Request
-            echo json_encode(['success' => false, 'message' => '无效的文件类型，仅支持JPG、PNG和GIF']);
+            echo json_encode(['success' => false, 'message' => '无效的文件类型，仅支持JPG、JPEG、PNG和GIF']);
+            exit;
+        }
+
+        // 检查真实 MIME 类型（第二关，2026-09-05 功能2 新增 finfo 双保险）
+        if (!function_exists('finfo_open')) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => '服务器缺少 finfo 扩展，无法校验图片合法性']);
+            exit;
+        }
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $real_mime = finfo_file($finfo, $_FILES['image']['tmp_name']);
+        finfo_close($finfo);
+        $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!in_array($real_mime, $allowed_mimes, true)) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => '图片真实内容类型不合法，仅允许上传真实的 JPG/PNG/GIF 图片']);
+            exit;
+        }
+        // MIME 与扩展名一致性（防止 .png 扩展名但真实 image/jpeg 这种不一致，防绕过）
+        $mime_to_ext = ['image/jpeg' => ['jpg','jpeg'], 'image/png' => ['png'], 'image/gif' => ['gif']];
+        if (!isset($mime_to_ext[$real_mime]) || !in_array($file_ext, $mime_to_ext[$real_mime], true)) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => '图片扩展名与真实内容类型不一致，请更换合法图片']);
             exit;
         }
 
@@ -139,12 +187,10 @@ try {
     // 根据类型选择表和状态
     $table_name = $type === 'lost' ? 'lost_listings' : 'found_listings';
     $status = $type === 'lost' ? 'pending' : 'unclaimed';
-    
-    // 设置默认分类
-    $category = isset($_POST['category']) ? htmlspecialchars(strip_tags($_POST['category'])) : '其他';
+    $comment_is_updated = 0; // 显式写入 0，不依赖数据库 DEFAULT
 
-    // 准备插入语句
-    $sql = "INSERT INTO {$table_name} (user_id, item_name, description, location_details, location_coordinates, event_time, image_file_path, status, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    // 准备插入语句（2026-09-05 功能2 新增 comment_is_updated 列，显式写入 0）
+    $sql = "INSERT INTO {$table_name} (user_id, item_name, description, location_details, location_coordinates, event_time, image_file_path, status, category, comment_is_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     // 准备并执行查询
     $stmt = $conn->prepare($sql);
@@ -155,7 +201,7 @@ try {
         exit;
     }
 
-    $stmt->bind_param("issssssss", $user_id, $item_name, $description, $location_details, $location_coordinates, $event_time, $image_file_path, $status, $category);
+    $stmt->bind_param("issssssssi", $user_id, $item_name, $description, $location_details, $location_coordinates, $event_time, $image_file_path, $status, $category, $comment_is_updated);
 
     if (!$stmt->execute()) {
         header('Content-Type: application/json');
