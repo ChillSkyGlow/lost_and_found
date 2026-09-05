@@ -37,7 +37,38 @@ if (!in_array($table_name, $allowed_tables)) {
     exit;
 }
 
-// TODO: 可以进一步验证 pk_name 是否真的是该表的主键
+// 校验 pk_name 是否为该表真实主键（ INFORMATION_SCHEMA ）
+$db_name = 'lost_and_found';
+$pk_check_sql = "SELECT k.COLUMN_NAME
+    FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS t
+    JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS k
+    USING(CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME)
+    WHERE t.CONSTRAINT_TYPE = 'PRIMARY KEY'
+      AND t.TABLE_SCHEMA = ?
+      AND t.TABLE_NAME = ?
+      AND k.COLUMN_NAME = ?
+    LIMIT 1";
+$pk_stmt = $conn->prepare($pk_check_sql);
+if (!$pk_stmt) {
+    throw new Exception("主键校验查询准备失败: " . $conn->error);
+}
+$pk_stmt->bind_param('sss', $db_name, $table_name, $pk_name);
+$pk_stmt->execute();
+$pk_stmt->store_result();
+if ($pk_stmt->num_rows === 0) {
+    $pk_stmt->close();
+    sendResponse(false, '提供的主键名与表实际主键不匹配，禁止删除。');
+    exit;
+}
+$pk_stmt->close();
+
+// 保护措施：禁止删除 users 表中当前登录管理员自身的账号
+if ($table_name === 'users' && isset($_SESSION['admin_user_id'])) {
+    if ((string)$pk_value === (string)$_SESSION['admin_user_id']) {
+        sendResponse(false, '禁止删除当前登录的管理员账号。');
+        exit;
+    }
+}
 
 try {
     // 使用预处理语句防止SQL注入

@@ -8,9 +8,30 @@ require_once '../config/database.php';
 require_once '../config/helpers.php';
 session_start();
 
-// 确保只有管理员可以访问
-if (!isset($_SESSION['user_id'])) {
+// 确保只有管理员可以访问（服务端严格 role 校验，不可前端绕过）
+// 同时支持两种会话：前台 user_id 登录、后台 admin_user_id 管理员独立会话
+if (!isset($_SESSION['user_id']) && !isset($_SESSION['admin_user_id'])) {
+    http_response_code(401);
     sendResponse(false, '未登录', []);
+    exit;
+}
+
+$conn0 = get_db_connection();
+$role_stmt = $conn0->prepare("SELECT role FROM users WHERE user_id = ? LIMIT 1");
+if (!$role_stmt) {
+    sendResponse(false, '服务器错误：管理员权限校验失败。');
+    exit;
+}
+$uid0 = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : (int)$_SESSION['admin_user_id'];
+$role_stmt->bind_param('i', $uid0);
+$role_stmt->execute();
+$role_stmt->bind_result($user_role);
+$role_stmt->fetch();
+$role_stmt->close();
+$conn0->close();
+if ($user_role !== 'admin') {
+    http_response_code(403);
+    sendResponse(false, '权限不足：此接口仅管理员可访问。', []);
     exit;
 }
 

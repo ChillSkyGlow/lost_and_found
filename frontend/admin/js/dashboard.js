@@ -17,11 +17,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentTableName = '';
     let currentPrimaryKey = '';
 
-    // 鉴权函数
+    // 鉴权函数：真实探测管理员会话（401 立即跳转登录页）
     const checkAdminAuth = async () => {
-        // 在实际应用中，这里应该有一个后端接口验证会话
-        // 为简化，我们暂时假设会话有效，但在真实API调用失败时会处理401错误
-        return true;
+        try {
+            const probe = await fetch('../../backend/api/admin/get_tables.php', { credentials: 'include' });
+            if (probe.status === 401) return false;
+            if (!probe.ok) return false;
+            const data = await probe.json();
+            return !!(data && data.success);
+        } catch (e) {
+            return false;
+        }
     };
 
     // 渲染表格数据
@@ -225,13 +231,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 退出登录
-    logoutBtn.addEventListener('click', () => {
-        // 这里应调用后端登出接口
-        // 为简化，直接清除会话相关的标识并跳转
-        // TODO: 创建后端 /admin/logout.php
-        showMessage(messageBox, 'success', '正在退出...');
-        window.location.href = 'index.html';
+    // 退出登录：调用真实 logout API 销毁 SESSION，成功后跳转登录页
+    logoutBtn.addEventListener('click', async () => {
+        showMessage(messageBox, 'info', '正在退出...');
+        try {
+            const res = await fetch('../../backend/api/admin/logout.php', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            if (res.ok) window.location.href = 'index.html';
+            else window.location.href = 'index.html';
+        } catch (_) {
+            window.location.href = 'index.html';
+        }
     });
 
     init();

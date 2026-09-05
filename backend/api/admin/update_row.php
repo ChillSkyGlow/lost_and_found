@@ -50,14 +50,18 @@ try {
     $bind_values = [];
     $types = '';
 
+    $sensitive_users_columns = ['password_hash', 'security_answer', 'security_question', 'verification_code'];
     foreach ($row_data as $key => $value) {
         if (!in_array($key, $allowed_columns)) {
             throw new Exception("无效的列名: $key");
         }
-        if ($key === $pk_name) continue; // 不更新主键
+        if ($key === $pk_name) continue;
+        if ($table_name === 'users' && in_array(strtolower($key), $sensitive_users_columns, true)) {
+            throw new Exception("敏感字段禁止修改: $key");
+        }
         $set_clause_parts[] = "`$key` = ?";
         $bind_values[] = $value;
-        $types .= 's'; // 全部当作字符串处理以简化
+        $types .= 's';
     }
 
     if (empty($set_clause_parts)) {

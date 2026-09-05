@@ -39,7 +39,8 @@
     "isLoggedIn": true,
     "user": {
       "userId": 1,
-      "username": "xxx"
+      "username": "xxx",
+      "role": "user"
     }
   }
 }
@@ -67,13 +68,20 @@
 
 #### 数据库操作
 
-无数据库操作
+```sql
+-- ① 会话存在且需要返回 role 字段时（prepared）
+SELECT role
+FROM users
+WHERE user_id = ?
+LIMIT 1
+```
 
 #### 备注
 
 - 文件开头直接 `session_start()`
 - 未验证数据库中该 `user_id` 是否仍存在
-- 依赖：`helpers.php` 的 `sendResponse` 函数
+- 已增加 `role` 字段：`users.role` 实际值 `'user'` / `'admin'`；查不到时默认 `'user'` 兜底
+- 依赖：`helpers.php` 的 `sendResponse` 函数 + `database.php` 的 `get_db_connection`
 
 ---
 
@@ -2553,6 +2561,12 @@ SELECT * FROM `$table_name`
   "success": false,
   "message": "无效的列名: xxx"
 }
+
+// 敏感字段禁止修改（users 表的 password_hash / security_answer / security_question / verification_code 四列，黑名单大小写不敏感）
+{
+  "success": false,
+  "message": "敏感字段禁止修改: password_hash"
+}
 ```
 
 #### 数据库操作
@@ -2564,7 +2578,10 @@ SHOW TABLES FROM `lost_and_found`
 -- ② 列白名单
 SHOW COLUMNS FROM `$table_name`
 
--- ③ 动态构建 UPDATE（每个 key 校验列在白名单中，主键列不在 SET 中）
+-- ③ 遍历 row_data 额外做 users 表敏感列黑名单过滤（in_array(strtolower($key), ...)）
+--    命中则 throw Exception 中断不执行 UPDATE
+
+-- ④ 动态构建 UPDATE（每个 key 校验列在白名单中，主键列不在 SET 中）
 UPDATE `table` 
 SET `col1` = ?, `col2` = ? ... 
 WHERE `pk_name` = ?
@@ -2611,19 +2628,83 @@ WHERE `pk_name` = ?
 #### 失败响应
 
 ```json
-// 删除失败：返回 error 信息
+// 提供的 pk_name 不是该表实际主键（ INFORMATION_SCHEMA 主键校验不通过 ）
+{
+  "success": false,
+  "message": "提供的主键名与表实际主键不匹配，禁止删除。"
+}
+
+// table=users 且 pk_value == SESSION.admin_user_id（禁止删除当前登录管理员自身）
+{
+  "success": false,
+  "message": "禁止删除当前登录的管理员账号。"
+}
 ```
 
 #### 数据库操作
 
 ```sql
--- ① 白名单校验表名
--- ② 删除
+-- ① 白名单校验表名（SHOW TABLES）
+
+-- ② INFORMATION_SCHEMA 校验 pk_name 是否为真实主键（prepared）
+SELECT k.COLUMN_NAME
+  FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS t
+  JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k
+ USING(CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME)
+ WHERE t.CONSTRAINT_TYPE = 'PRIMARY KEY'
+   AND t.TABLE_SCHEMA = 'lost_and_found'
+   AND t.TABLE_NAME = ?
+   AND k.COLUMN_NAME = ?
+ LIMIT 1
+
+-- ③ table=users 时比对 pk_value 与 $_SESSION['admin_user_id']，相同直接拦截
+
+-- ④ 合法后执行删除
 DELETE FROM `table` 
 WHERE `pk_name` = ?
 
--- 按字符串绑定
+-- 按字符串绑定 prepared
 ```
+
+---
+
+### 5.6 管理员登出 logout
+
+- 文件：`backend/api/admin/logout.php`
+- URL：`/backend/api/admin/logout.php`
+- Method：仅 POST
+- 登录要求：任意（即使 admin SESSION 已失效也返回 success 幂等）
+- 权限：仅作用于 `$_SESSION['admin_logged_in']`、`$_SESSION['admin_user_id']` 两个 admin 独立键，不影响前台 user 普通用户的 `$_SESSION['user_id']`
+
+#### 请求参数
+
+无参数（POST 空 Body 即可）
+
+#### 成功响应（200）
+
+```json
+{
+  "success": true,
+  "message": "管理员已成功登出。"
+}
+```
+
+#### 失败响应
+
+```json
+// 非 POST 方法
+{
+  "success": false,
+  "message": "无效的请求方法"
+}
+```
+
+#### 行为
+
+1. 若 session 未启动先启动
+2. `unset($_SESSION['admin_logged_in'])`、`unset($_SESSION['admin_user_id'])`
+3. `session_regenerate_id(true)` 防止会话固定
+4. 不销毁整个 session（避免前台普通用户登录态被同时登出）
 
 ---
 
@@ -2676,9 +2757,9 @@ WHERE `pk_name` = ?
 
 - 文件：`backend/api/debug_notifications.php`
 - URL：`/backend/api/debug_notifications.php`
-- Method：源码中未确认；GET 传 `?fix=true` 触发修复
-- 登录要求：必须（检查 `isset($_SESSION['user_id'])`）
-- 权限：**源码中未确认是否检查 `role='admin'`**（注释写了"确保只有管理员可以访问"但代码未做）= 任何登录用户都能访问
+- Method：`GET`（固定）；GET 传 `?fix=true` 触发缺失通知修复并写入 matched_notifications
+- 登录要求：必须（先检查 `isset($_SESSION['user_id'])`，HTTP 401）
+- 权限：**管理员**（额外 SELECT `users.role WHERE user_id = ?` prepared 校验必须 `role === 'admin'`，非 admin 直接 HTTP 403）
 
 #### 请求参数
 
@@ -2704,7 +2785,13 @@ WHERE `pk_name` = ?
 
 #### 失败响应
 
-源码中未确认
+```json
+// 未登录 HTTP 401
+{ "success": false, "message": "未登录", "data": [] }
+
+// 已登录但 role !== 'admin' HTTP 403
+{ "success": false, "message": "权限不足：此接口仅管理员可访问。", "data": [] }
+```
 
 #### 数据库操作
 
@@ -2793,7 +2880,7 @@ VALUES (?, ?, ?, 0)
 | `publish.js` | `POST listings/publish_secure.php` | **未用封装的 `publishListing()`（该封装走的是 `publish_listing.php`），直接 fetch 到 `publish_secure.php`** |
 | 状态更新相关页面 | `POST listings/update_listing_status.php` | 直接 fetch |
 | 标记已读相关 | `POST users/mark_message_read.php` | messages.js 已改为 api/index.js 封装 `markMessageRead(payload)` 调用 |
-| 管理员全部接口（`login.js`, `dashboard.js`） | `admin/login.php`, `admin/get_tables.php`, `admin/get_table_data.php`, `admin/update_row.php`, `admin/delete_row.php` | 直接 fetch，api/index.js 中无管理员封装 |
+| 管理员全部接口（`login.js`, `dashboard.js`） | `admin/login.php`, `admin/logout.php`, `admin/get_tables.php`, `admin/get_table_data.php`, `admin/update_row.php`, `admin/delete_row.php` | 直接 fetch，api/index.js 中无管理员封装 |
 | 通知调试 | `backend/api/debug_notifications.php` | 直接 fetch |
 | 邮箱验证流程 | `POST auth/verify_email.php`, `POST auth/resend_verification_code.php` | 直接 fetch，封装中无这两个函数 |
 | 评论邮件相关 | 后端自动发送 | 由 `post_comment.php` 触发，前端无感知 |

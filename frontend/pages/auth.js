@@ -2,6 +2,25 @@ import { checkSession, logout, getMessages } from '../api/index.js';
 
 let currentUser = null;
 let messageBadgeInstalled = false;
+let adminLinkInstalled = false;
+
+const installAdminDashboardLink = (userNav, user) => {
+    if (!userNav || !user || adminLinkInstalled) return;
+    adminLinkInstalled = true;
+    if (user.role !== 'admin') return;
+    const logoutBtn = userNav.querySelector('#logout-btn');
+    const existing = userNav.querySelector('a[href="admin/dashboard.html"]');
+    if (existing) return;
+    const link = document.createElement('a');
+    link.href = 'admin/dashboard.html';
+    link.className = 'messages-nav-link';
+    link.textContent = '管理后台';
+    if (logoutBtn) {
+        logoutBtn.insertAdjacentElement('beforebegin', link);
+    } else {
+        userNav.appendChild(link);
+    }
+};
 
 const installMessageUnreadBadge = async (userNav) => {
     if (!userNav || messageBadgeInstalled) return;
@@ -66,6 +85,7 @@ function setupHeader(user) {
         // 显示已登录导航，隐藏未登录导航
         if (userNav) {
             userNav.style.display = 'flex';
+            installAdminDashboardLink(userNav, user);
             installMessageUnreadBadge(userNav);
             // 设置登出按钮事件
             const logoutBtn = userNav.querySelector('#logout-btn');
