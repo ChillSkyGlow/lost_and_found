@@ -1401,14 +1401,16 @@ INSERT INTO {lost/found}_listings (... , comment_is_updated=0) VALUES ...
 |---|---|---|---|
 | filter | string | 否 | 默认 `all`；可选 `lost` / `found` / `all` |
 | search | string | 否 | 默认空串；模糊匹配 `item_name` / `description` |
-| page | int | 否 | 默认 1；必须 > 0 |
-| lat | float | 否 | 与 lon、radius 同时存在时启用地理过滤 |
-| lon | float | 否 | 经度 |
-| radius | float | 否 | 半径（公里） |
-| sort | string | 否 | 默认 `time_desc`；其他排序值未分支实现 |
+| category | string | 否 | 默认空串；精确匹配 `category` 列（如 `证件` / `钥匙` / `电子产品` / `钱包/手袋` / `书籍文具` / `衣物` / `运动器材` / `食品饮料` / `其他`） |
+| location | string | 否 | 默认空串；模糊匹配 `location_details` 列（如 `图书馆`） |
+| page | int | 否 | 默认 1；必须 > 0，小于 1 时自动兜底为 1 |
+| lat | float | 否 | 与 lon、radius 同时存在时启用地理过滤；非数字时被 `filter_var` 判为 `null` 自动忽略该条件 |
+| lon | float | 否 | 经度；非数字同上忽略 |
+| radius | float | 否 | 半径（公里）；非数字同上忽略 |
+| sort | string | 否 | 默认 `time_desc`；白名单仅 `time_desc`（按 `created_at` 降序）生效，其他值自动兜底到 `time_desc` |
 | date | string | 否 | `Y-m-d`；按 `DATE(event_time)=?` 过滤 |
 
-> 全部来自 `$_GET`
+> 全部来自 `$_GET`。filter=all 时 UNION 两段查询的 WHERE 参数会各绑定一次（params × 2，bind_param types 长度 × 2）。
 
 #### 成功响应（200）
 
@@ -1426,7 +1428,8 @@ INSERT INTO {lost/found}_listings (... , comment_is_updated=0) VALUES ...
       "description": "描述",
       "location_details": "位置",
       "event_time": "2024-01-01 00:00:00",
-      "created_at": "2024-01-01 00:00:00"
+      "created_at": "2024-01-01 00:00:00",
+      "category": "证件"
     }
   ],
   "pagination": {
@@ -1437,35 +1440,44 @@ INSERT INTO {lost/found}_listings (... , comment_is_updated=0) VALUES ...
 }
 ```
 
-> 每页 9 条（`LIMIT 9 OFFSET (page-1)*9`）
+> 每页 9 条（`LIMIT 9 OFFSET (page-1)*9`）；`category` 字段从 `lost_listings.category` / `found_listings.category` 读出，供前端卡片展示"类别"标签
 
 #### 失败响应
 
-源码中未确认（非标准格式）
+源码中无主动 4xx 失败分支：
+- 无效参数（page 负数、lat/lon/radius 非数字）走安全兜底默认值，返回 200 空结果。
+- 未捕获异常 → HTTP 500 `{success:false, message:"获取物品列表时发生错误: ..."}`（`sendResponse`）
 
 #### 数据库操作
 
 ```sql
 -- filter=lost
-SELECT l.*, u.username FROM lost_listings l
+SELECT 'lost', l.lost_listing_id, l.item_name, l.image_file_path, u.username, l.description,
+       l.location_details, l.event_time, l.created_at, l.category
+FROM lost_listings l
 JOIN users u ON l.user_id = u.user_id
 WHERE l.status = 'pending'
   [AND (item_name LIKE ? OR description LIKE ?)]
+  [AND category = ?]
+  [AND location_details LIKE ?]
   [AND DATE(event_time) = ?]
   [AND Haversine距离 <= radius]
 
 -- filter=found（同上 found_listings WHERE status='unclaimed'）
 
--- filter=all → UNION ALL 上述两个结果
+-- filter=all → UNION ALL 上述两个结果，外层 ORDER BY created_at DESC
 ```
 
 > 地理距离公式（Haversine）：
 > `6371 * acos( cos(radians(?)) * cos(radians(SUBSTRING_INDEX(location_coordinates,',',-1))) * cos(radians(SUBSTRING_INDEX(location_coordinates,',',1)) - radians(?)) + sin(radians(?)) * sin(radians(SUBSTRING_INDEX(location_coordinates,',',-1))) ) <= radius`
+> 其中参数顺序 = `lat, lon, lat, radius`（绑定 dddd），location_coordinates 格式 `"lng,lat"`
 
 #### 备注
 
-- **源码中未确认**：`SUBSTRING_INDEX` 拆 coords 时，把逗号前一半当经度（`radians` 减）、后一半当纬度。天地图写入的是 `"lng,lat"`，`SUBSTRING_INDEX(str,',',1)=lng`；`SUBSTRING_INDEX(str,',',-1)=lat`。计算时把"后一半"放在 sin/cos 纬度位置上是对的，但 acos 里第二项的 cos 项用了 `SUBSTRING_INDEX(逗号后)` 当纬度、第三项 `SUBSTRING_INDEX(逗号前)` 当经度（和参数顺序匹配）。需要仔细核对公式。
-- 代码开头调用了 `sendResponse` 但没引入 `helpers.php`？源码中 `sendResponse` 是在 helpers 定义的（此处是否在 `database.php` 也提供了 `db_send_json_response`？实际存在两个响应函数名不同，源码中开头一行调用的是哪个需要核实）
+- `SUBSTRING_INDEX` 拆 coords：`1=lng`、`-1=lat`，与天地图写入格式 `"lng,lat"` 及公式参数顺序（lat 放 radians cos/sin 纬度位）完全对应。
+- `category` 精确匹配的 9 类中文枚举值与发布端 `publish.html` 下拉框一一对应。
+- `search`（item_name+description）与 `location`（location_details）是两个独立 WHERE，支持叠加。
+- 前端 `index.html` 的 `#search-form` 内 4 个输入/选择（keyword / category / location / date）+ `displayListings()` 每次从 DOM 重取值，故分页时仍保留这 4 个条件。
 
 ---
 

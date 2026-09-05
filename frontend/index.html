@@ -35,6 +35,19 @@
             <!-- 搜索表单 -->
             <form id="search-form">
                 <input type="text" id="search-keyword" name="keyword" placeholder="输入物品名称或描述关键词...">
+                <select id="search-category" name="category">
+                    <option value="">全部类别</option>
+                    <option value="证件">证件</option>
+                    <option value="电子产品">电子产品</option>
+                    <option value="钥匙">钥匙</option>
+                    <option value="钱包/手袋">钱包/手袋</option>
+                    <option value="书籍文具">书籍文具</option>
+                    <option value="衣物">衣物</option>
+                    <option value="运动器材">运动器材</option>
+                    <option value="食品饮料">食品饮料</option>
+                    <option value="其他">其他</option>
+                </select>
+                <input type="text" id="search-location" name="location" placeholder="输入地点关键词如图书馆、教学楼...">
                 <input type="date" id="search-date" name="date">
                 <button type="submit">搜索</button>
             </form>

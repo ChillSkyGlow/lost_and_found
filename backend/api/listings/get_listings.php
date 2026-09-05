@@ -29,6 +29,8 @@ $lon = isset($_GET['lon']) ? filter_var($_GET['lon'], FILTER_VALIDATE_FLOAT) : n
 $radius = isset($_GET['radius']) ? filter_var($_GET['radius'], FILTER_VALIDATE_FLOAT) : null;
 $sort_key = $_GET['sort'] ?? 'time_desc'; // 接收排序参数
 $date = $_GET['date'] ?? ''; // 接收日期参数
+$category = $_GET['category'] ?? ''; // 接收物品类别参数
+$location = $_GET['location'] ?? ''; // 接收地点关键词参数
 
 $conn = get_db_connection();
 $params = [];
@@ -46,7 +48,8 @@ $lost_query_part = "
         l.description,
         l.location_details,
         l.event_time,
-        l.created_at
+        l.created_at,
+        l.category
     FROM lost_listings l 
     JOIN users u ON l.user_id = u.user_id 
     WHERE l.status = 'pending'
@@ -62,7 +65,8 @@ $found_query_part = "
         f.description,
         f.location_details,
         f.event_time,
-        f.created_at
+        f.created_at,
+        f.category
     FROM found_listings f 
     JOIN users u ON f.user_id = u.user_id 
     WHERE f.status = 'unclaimed'
@@ -76,6 +80,21 @@ if (!empty($search)) {
     $params[] = $search_term;
     $params[] = $search_term;
     $types .= 'ss';
+}
+
+// **新增: 如果提供了物品类别，则添加到WHERE子句（精确匹配枚举值）**
+if (!empty($category)) {
+    $where_clauses[] = "category = ?";
+    $params[] = $category;
+    $types .= 's';
+}
+
+// **新增: 如果提供了地点关键词，则对 location_details 做模糊匹配**
+if (!empty($location)) {
+    $location_term = '%' . $location . '%';
+    $where_clauses[] = "location_details LIKE ?";
+    $params[] = $location_term;
+    $types .= 's';
 }
 
 // **新增: 如果提供了日期，则添加到WHERE子句**

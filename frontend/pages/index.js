@@ -51,7 +51,9 @@ async function displayListings(page = 1) {
             search: currentSearchTerm,
             page: currentPage,
             sort: currentSort,
-            date: $('#search-date').value // 直接从DOM获取日期值
+            date: $('#search-date').value,
+            category: $('#search-category').value,
+            location: $('#search-location').value.trim()
         };
         
         // 确保分页时也能保留地理筛选
@@ -79,6 +81,7 @@ async function displayListings(page = 1) {
                     <img src="${listing.image_file_path ? '../backend/' + sanitizeHTML(listing.image_file_path) : 'images/default.png'}" alt="${sanitizeHTML(listing.item_name)}">
                     <div class="card-content">
                         <h3>${sanitizeHTML(listing.item_name)}</h3>
+                        <p><strong>类别:</strong> ${sanitizeHTML(listing.category) || '无'}</p>
                         <p><strong>描述:</strong> ${sanitizeHTML(listing.description) || '无'}</p>
                         <p><strong>时间:</strong> ${new Date(listing.event_time).toLocaleString()}</p>
                         <p><strong>地点:</strong> ${sanitizeHTML(listing.location_details)}</p>
