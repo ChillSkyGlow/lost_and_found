@@ -2031,7 +2031,105 @@ ORDER BY s.created_at DESC LIMIT 100;
 
 ---
 
-### 3.12 发布测试接口 test_publish
+### 3.12 认领审核 review_claim
+
+- 文件：`backend/api/listings/review_claim.php`
+- URL：`/backend/api/listings/review_claim.php`
+- Method：POST（`application/x-www-form-urlencoded` 或 `FormData`）
+- 登录要求：必须（`requireLogin`）
+- 权限：仅 **招领发布者本人**（`found_listings.user_id === current`）；非本人审核 HTTP 403
+
+#### 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `solve_id` | int | 是 | 认领申请 ID（来自 `solve.solve_id`，必须存在） |
+| `decision` | string | 是 | 审核决定，白名单枚举：`approve`=通过；`reject`=拒绝 |
+
+#### 成功响应（200 / approve 通过）
+
+```json
+{
+  "success": true,
+  "message": "审核通过，招领物品已标记为已认领，对应失物已标记为已解决。",
+  "data": {
+    "solve_id": 5,
+    "status": "completed",
+    "solved_at": "2026-09-05 19:35:12",
+    "found_status": "claimed",
+    "lost_status": "solved",
+    "notification_sent": true,
+    "email_sent": true
+  }
+}
+```
+
+#### 成功响应（200 / reject 拒绝）
+
+```json
+{
+  "success": true,
+  "message": "已拒绝该认领申请。",
+  "data": {
+    "solve_id": 5,
+    "status": "rejected",
+    "notification_sent": true,
+    "email_sent": true
+  }
+}
+```
+
+#### 错误响应
+
+| 场景 | HTTP | message / code |
+|------|------|----------------|
+| 未登录 | 401 | `未登录` |
+| 参数缺失 / decision 非法 | 400 | `参数 solve_id 必须为正整数` / `decision 必须为 approve 或 reject` |
+| solve_id 不存在 | 404 | `认领申请不存在` |
+| 非招领主人审核 | 403 | `只有招领发布者本人才能审核该认领申请` |
+| 申请已处理（非 processing） | 409 | `该申请已审核通过，不可重复操作` / `该申请已被拒绝，不可重复操作` |
+| approve 时招领状态非 unclaimed / 失物非 pending | 409 | `招领物品当前状态为 xxx，仅未认领的招领可通过审核` / 类似失物文案 |
+| MySQL 事务失败 | 500 | `审核操作失败：{mysqli error}` |
+
+#### 数据库操作（事务 + FOR UPDATE 行锁）
+
+```sql
+-- 1) 开启事务，锁 solve + found + lost 三行（统一锁顺序防死锁）
+SELECT s.*, 
+       f.user_id AS found_user_id, f.item_name AS found_title, f.status AS found_status,
+       l.user_id AS lost_user_id,  l.item_name AS lost_title,  l.status AS lost_status
+  FROM solve s
+  LEFT JOIN found_listings f ON f.found_listing_id = s.found_listing_id
+  LEFT JOIN lost_listings  l ON l.lost_listing_id  = s.lost_listing_id
+ WHERE s.solve_id = ? FOR UPDATE;
+
+-- 2a) decision=approve 时级联 6 写
+UPDATE found_listings SET status = 'claimed'                WHERE found_listing_id = ?;
+UPDATE lost_listings  SET status = 'solved'                 WHERE lost_listing_id  = ?;
+UPDATE solve SET status = 'completed', solved_at = NOW()    WHERE solve_id        = ?;
+INSERT IGNORE INTO matched_notifications
+ (user_id, type, listing_id, listing_type, source_listing_id, source_listing_type)
+VALUES (?,'claim_approved', ?, 'found', ?, 'lost');
+-- + PHPMailer 向失主邮箱发认领成功邮件（try/catch 隔离，失败仅 error_log）
+
+-- 2b) decision=reject 时级联 4 写
+UPDATE solve SET status = 'rejected', solved_at = NOW()     WHERE solve_id = ?;
+INSERT IGNORE INTO matched_notifications (..., type='claim_rejected');
+-- + PHPMailer 失主拒绝邮件（同样 try/catch 隔离）
+
+-- 3) COMMIT
+```
+
+#### 关键业务规则
+
+1. **幂等审核**：processing 以外的状态（completed/rejected）再次调用直接 HTTP 409，不改变任何数据。
+2. **并发 approve 防重**：FOR UPDATE 锁 found/lost 行后立即判断 status 是否仍为 unclaimed/pending，避免两个申请同时 approve 同一个招领导致双重认领。
+3. **邮件隔离**：DB COMMIT 后单独 try PHPMailer，catch 只 `error_log()` 不回滚事务也不返回失败，保证即使 SMTP 故障业务状态也已更新。
+4. **通知去重**：用 `INSERT IGNORE` 依赖 `matched_notifications` 上的组合唯一键，重复审核不会产生重复通知行。
+
+---
+
+### 3.13 发布测试接口 test_publish
 
 - 文件：`backend/api/listings/test_publish.php`
 - URL：`/backend/api/listings/test_publish.php`
@@ -2078,7 +2176,7 @@ ORDER BY s.created_at DESC LIMIT 100;
 
 ---
 
-### 3.13 物品路由入口 index.php
+### 3.14 物品路由入口 index.php
 
 - 文件：`backend/api/listings/index.php`
 - URL：`/backend/api/listings/index.php`

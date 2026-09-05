@@ -253,17 +253,25 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const card = document.createElement('div');
                 card.className = 'card listing-card';
                 const imgUrl = c.found_image ? `../backend/${c.found_image}` : 'images/default.png';
-                const statusBadge = c.status === 'processing'
-                    ? '<span class="status-badge processing">处理中（待审核）</span>'
-                    : '<span class="status-badge completed">已完成</span>';
+                let statusBadge, stTip = '';
+                if (c.status === 'processing') {
+                    statusBadge = '<span class="status-badge processing">处理中（待审核）</span>';
+                } else if (c.status === 'completed') {
+                    statusBadge = '<span class="status-badge completed">认领成功</span>';
+                } else {
+                    statusBadge = '<span class="status-badge rejected">审核未通过</span>';
+                    stTip = '<p class="message error" style="margin:6px 0 0;padding:6px 10px;font-size:0.88em;">招领发布者未通过您的认领申请</p>';
+                }
                 card.innerHTML = `
                     <img src="${imgUrl}" alt="${c.found_title || '招领物品'}" class="card-image">
                     <div class="card-content">
                         <h3 class="card-title">招领：${c.found_title || '未命名'}</h3>
                         <p class="card-date">申请时间：${new Date(c.created_at).toLocaleString()}</p>
+                        ${c.solved_at ? `<p class="card-date">审核时间：${new Date(c.solved_at).toLocaleString()}</p>` : ''}
                         <p><strong>招领发布者：</strong>${c.found_username || '-'}</p>
                         <p><strong>对应失物：</strong>${c.lost_title || '-'}</p>
                         <p><strong>状态：</strong>${statusBadge}</p>
+                        ${stTip}
                         <p style="font-size:0.92em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                             <strong>物品特征：</strong>${c.claim_features ? (c.claim_features.length > 40 ? c.claim_features.slice(0, 40) + '...' : c.claim_features) : '-'}</p>
                         <div class="card-actions">

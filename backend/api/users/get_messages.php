@@ -90,6 +90,52 @@ try {
         $stmt_c->close();
     }
 
+    $sql_claim_approved = "SELECT {$base_select_fields} {$from_join} AND COALESCE(m.type, 'match') = 'claim_approved' ORDER BY m.created_at DESC";
+    $stmt_ca = $conn->prepare($sql_claim_approved);
+    if ($stmt_ca) {
+        $stmt_ca->bind_param('i', $user_id);
+        $stmt_ca->execute();
+        $res_ca = $stmt_ca->get_result();
+        $debug_info['claim_approved_count'] = $res_ca->num_rows;
+        while ($row = $res_ca->fetch_assoc()) {
+            $messages[] = [
+                'id' => $row['id'],
+                'type' => 'claim_approved',
+                'listing_id' => $row['listing_id'],
+                'listing_type' => $row['listing_type'],
+                'time' => $row['time'],
+                'item_name' => $row['matched_item_name'],
+                'source_listing_id' => $row['source_listing_id'],
+                'source_listing_type' => $row['source_listing_type'],
+                'source_item_name' => $row['source_item_name']
+            ];
+        }
+        $stmt_ca->close();
+    }
+
+    $sql_claim_rejected = "SELECT {$base_select_fields} {$from_join} AND COALESCE(m.type, 'match') = 'claim_rejected' ORDER BY m.created_at DESC";
+    $stmt_cr = $conn->prepare($sql_claim_rejected);
+    if ($stmt_cr) {
+        $stmt_cr->bind_param('i', $user_id);
+        $stmt_cr->execute();
+        $res_cr = $stmt_cr->get_result();
+        $debug_info['claim_rejected_count'] = $res_cr->num_rows;
+        while ($row = $res_cr->fetch_assoc()) {
+            $messages[] = [
+                'id' => $row['id'],
+                'type' => 'claim_rejected',
+                'listing_id' => $row['listing_id'],
+                'listing_type' => $row['listing_type'],
+                'time' => $row['time'],
+                'item_name' => $row['matched_item_name'],
+                'source_listing_id' => $row['source_listing_id'],
+                'source_listing_type' => $row['source_listing_type'],
+                'source_item_name' => $row['source_item_name']
+            ];
+        }
+        $stmt_cr->close();
+    }
+
     // 2.1 失物评论
     $sql_lost_comment = "SELECT 
         c.comment_id as id,

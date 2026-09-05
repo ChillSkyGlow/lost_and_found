@@ -27,11 +27,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const commentMessagesList = $('#comment-messages-list');
     const matchMessagesList = $('#match-messages-list');
     const claimMessagesList = $('#claim-messages-list');
+    const claimReviewMessagesList = $('#claim-review-messages-list');
     
     try {
         commentMessagesList.innerHTML = '<p>正在加载评论消息...</p>';
         matchMessagesList.innerHTML = '<p>正在加载匹配消息...</p>';
         if (claimMessagesList) claimMessagesList.innerHTML = '<p>正在加载认领申请消息...</p>';
+        if (claimReviewMessagesList) claimReviewMessagesList.innerHTML = '<p>正在加载认领审核结果消息...</p>';
         
         const result = await getMessages();
         
@@ -40,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const commentMessages = [];
         const matchMessages = [];
         const claimMessages = [];
+        const claimReviewMessages = [];
         
         if (result.success && result.data && result.data.length > 0) {
             result.data.forEach(msg => {
@@ -49,6 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     commentMessages.push(msg);
                 } else if (msg.type === 'claim') {
                     claimMessages.push(msg);
+                } else if (msg.type === 'claim_approved' || msg.type === 'claim_rejected') {
+                    claimReviewMessages.push(msg);
                 }
             });
         }
@@ -132,6 +137,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             } else {
                 claimMessagesList.innerHTML = '<p class="no-messages">暂无认领申请消息</p>';
+            }
+        }
+
+        if (claimReviewMessagesList) {
+            if (claimReviewMessages.length > 0) {
+                claimReviewMessagesList.innerHTML = claimReviewMessages.map(msg => {
+                    const myItemName = msg.item_name ? `"${msg.item_name}"` : '招领物品';
+                    const tip = msg.type === 'claim_approved'
+                        ? `恭喜：您对招领${myItemName}的认领申请已通过审核！请及时联系招领发布者领取物品。`
+                        : `您对招领${myItemName}的认领申请未通过审核，可重新发布失物信息后再尝试。`;
+                    return `<div class="message-item ${msg.type}-message" data-id="${msg.listing_id}" data-type="${msg.listing_type}" data-message-id="${msg.id}" data-message-type="${msg.type}">
+                        ${tip}<span class="message-time">${msg.time || ''}</span>
+                    </div>`;
+                }).join('');
+                claimReviewMessagesList.querySelectorAll('.message-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const type = this.getAttribute('data-type');
+                        const messageId = this.getAttribute('data-message-id');
+                        const messageType = this.getAttribute('data-message-type');
+                        markMessageAsRead(messageId, messageType, type);
+                        window.location.href = `details.html?id=${id}&type=${type}`;
+                    });
+                });
+            } else {
+                claimReviewMessagesList.innerHTML = '<p class="no-messages">暂无认领审核结果消息</p>';
             }
         }
         

@@ -762,10 +762,11 @@ erDiagram
 | lost_listings | `status` | `'pending'`, `'solved'` | `'pending'` |
 | found_listings | `status` | `'unclaimed'`, `'claimed'` | `'unclaimed'` |
 | matches | — | **无 ENUM 字段** | — |
+| matched_notifications | `type` | `'match'`, `'claim'`, `'claim_approved'`, `'claim_rejected'` | `'match'` |
 | matched_notifications | `listing_type` | `'lost'`, `'found'` | — (NOT NULL) |
 | matched_notifications | `source_listing_type` | `'lost'`, `'found'` | `NULL` |
 | notifications | `type` | `'new_match'`, `'new_comment'` | — (NOT NULL) |
-| solve | `status` | `'processing'`, `'completed'` | `'processing'` |
+| solve | `status` | `'processing'`, `'completed'`, `'rejected'` | `'processing'` |
 | suggested_matches | `type` | `'lost'`, `'found'` | — (NOT NULL) |
 | users | — | **无 ENUM 字段**（role 是 varchar） | — |
 | lost_comment | — | 无 ENUM | — |

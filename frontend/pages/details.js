@@ -6,6 +6,7 @@ import {
     deleteListing,
     updateListingStatus,
     submitClaim,
+    reviewClaim,
     getClaimsForMyFound,
     getMyListings,
 } from "../api/index.js";
@@ -363,13 +364,23 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
 
             if (existingClaim) {
-                const st = existingClaim.status === 'processing' ? '审核中' : '已完成';
+                let st, stTip = '';
+                if (existingClaim.status === 'processing') {
+                    st = '审核中';
+                } else if (existingClaim.status === 'completed') {
+                    st = '认领成功';
+                } else {
+                    st = '审核未通过';
+                    stTip = '<p class="message error" style="margin-top:8px;">招领发布者未能通过您的认领申请，可重新发布失物信息后再次尝试。</p>';
+                }
                 claimContentArea.innerHTML = `
                     <div class="claim-existing">
                         <p class="message info">您已对该招领提交过认领申请，当前状态：
                             <strong class="status-badge ${existingClaim.status}">${st}</strong>
                         </p>
+                        ${stTip}
                         <p><strong>提交时间：</strong>${sanitizeHTML(new Date(existingClaim.created_at).toLocaleString())}</p>
+                        ${existingClaim.solved_at ? `<p><strong>审核时间：</strong>${sanitizeHTML(new Date(existingClaim.solved_at).toLocaleString())}</p>` : ''}
                         <p><strong>对应失物：</strong>${sanitizeHTML(existingClaim.lost_title || '未指定')}</p>
                         <p><strong>物品特征：</strong>${sanitizeHTML(existingClaim.claim_features || '')}</p>
                     </div>`;
@@ -459,6 +470,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
+    const handleReviewClaim = async (solveId, decision) => {
+        const confirmMsg = decision === 'approve'
+            ? '确定通过此认领申请？通过后招领物品将标记为已认领，失物标记为已解决。'
+            : '确定拒绝此认领申请？拒绝后仅修改申请状态，不会改变招领和失物的状态。';
+        if (!window.confirm(confirmMsg)) return;
+        hideMessage(claimMessageBox);
+        try {
+            const res = await reviewClaim({ solve_id: solveId, decision });
+            if (res && res.success) {
+                showMessage(claimMessageBox, 'success',
+                    decision === 'approve' ? '已通过该认领申请。' : '已拒绝该认领申请。');
+                await renderIncomingClaimsList(Number(listingId));
+            } else {
+                showMessage(claimMessageBox, 'error',
+                    (res && res.message) ? res.message : '审核操作失败，请稍后重试。');
+            }
+        } catch (err) {
+            console.error('handleReviewClaim err:', err);
+            showMessage(claimMessageBox, 'error', err.message || '审核时发生网络错误，请稍后重试。');
+        }
+    };
+
     const renderIncomingClaimsList = async (foundListingId) => {
         try {
             const res = await getClaimsForMyFound(foundListingId);
@@ -472,12 +505,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
             claimContentArea.innerHTML = `
-                <p class="claim-count-info">当前共收到 <strong>${items.length}</strong> 份认领申请（审核通过/拒绝功能将在「认领审核」中上线）：</p>
+                <p class="claim-count-info">当前共收到 <strong>${items.length}</strong> 份认领申请：</p>
                 <div class="claim-list">
                     ${items.map(c => {
-                        const statusBadge = c.status === 'processing'
-                            ? '<span class="status-badge processing">处理中（待审核）</span>'
-                            : '<span class="status-badge completed">已完成</span>';
+                        let statusBadge, actionBtns = '';
+                        if (c.status === 'processing') {
+                            statusBadge = '<span class="status-badge processing">处理中（待审核）</span>';
+                            actionBtns = `
+                            <div class="claim-card-actions">
+                                <button type="button" class="btn-approve-claim" data-solve-id="${c.solve_id}">通过</button>
+                                <button type="button" class="btn-reject-claim"  data-solve-id="${c.solve_id}" style="margin-left:10px;background:#d9534f;">拒绝</button>
+                            </div>`;
+                        } else if (c.status === 'completed') {
+                            statusBadge = '<span class="status-badge completed">已通过（已认领）</span>';
+                        } else {
+                            statusBadge = '<span class="status-badge rejected">已拒绝</span>';
+                        }
                         const lostImg = c.lost_image
                             ? `<img src="../backend/${sanitizeHTML(c.lost_image)}" alt="失物图片">`
                             : '<img src="images/default.png" alt="失物图片">';
@@ -489,6 +532,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                                     <h4>失主：${sanitizeHTML(c.lost_username || '未知')}</h4>
                                     <p><strong>对应失物：</strong>${sanitizeHTML(c.lost_title || '未指定')}</p>
                                     <p><strong>提交时间：</strong>${sanitizeHTML(new Date(c.created_at).toLocaleString())}</p>
+                                    ${c.solved_at ? `<p><strong>审核时间：</strong>${sanitizeHTML(new Date(c.solved_at).toLocaleString())}</p>` : ''}
                                     <p><strong>状态：</strong>${statusBadge}</p>
                                     <p style="font-size:0.9em;opacity:0.8;">联系方式（邮箱）：${sanitizeHTML(c.lost_email || '-')}</p>
                                 </div>
@@ -501,10 +545,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 ${c.verification_info ? `
                                 <p><strong>其他验证信息：</strong></p>
                                 <p class="claim-text">${sanitizeHTML(c.verification_info)}</p>` : ''}
+                                ${actionBtns}
                             </div>
                         </div>`;
                     }).join('')}
                 </div>`;
+            claimContentArea.querySelectorAll('.btn-approve-claim').forEach(btn => {
+                btn.addEventListener('click', () => handleReviewClaim(Number(btn.dataset.solveId), 'approve'));
+            });
+            claimContentArea.querySelectorAll('.btn-reject-claim').forEach(btn => {
+                btn.addEventListener('click', () => handleReviewClaim(Number(btn.dataset.solveId), 'reject'));
+            });
         } catch (err) {
             console.error('renderIncomingClaimsList err:', err);
             claimContentArea.innerHTML = `<p class="message error">加载认领申请列表失败：${sanitizeHTML(err.message || '未知错误')}</p>`;
