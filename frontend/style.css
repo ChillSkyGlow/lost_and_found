@@ -502,6 +502,79 @@ main {
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
+.profile-header-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+}
+.profile-header-body {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px dashed #e5e5e5;
+}
+.profile-avatar {
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5cb85c, #337ab7);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; font-weight: bold;
+    flex-shrink: 0;
+}
+.profile-info h2 { margin: 0 0 0.5rem 0; font-size: 1.6rem; color: #222; }
+.profile-info .profile-meta { margin: 0.25rem 0; color: #555; font-size: 0.95rem; }
+.profile-info .profile-meta.muted { color: #888; font-size: 0.88rem; }
+.profile-info .profile-meta .divider {
+    display: inline-block;
+    margin: 0 0.6rem;
+    color: #bbb;
+}
+.verified-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 3px;
+    font-size: 0.82rem;
+    font-weight: bold;
+    color: white;
+}
+.verified-badge.verified-ok   { background: #5cb85c; }
+.verified-badge.verified-no   { background: #f0ad4e; }
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.8rem;
+}
+.profile-stats .stat-item {
+    background: #f7f9fa;
+    border-radius: 8px;
+    padding: 0.8rem 0.5rem;
+    text-align: center;
+    border: 1px solid #eef0f1;
+}
+.profile-stats .stat-item strong {
+    display: block;
+    font-size: 1.5rem;
+    color: #337ab7;
+    font-weight: bold;
+    line-height: 1.2;
+}
+.profile-stats .stat-item span {
+    display: block;
+    font-size: 0.82rem;
+    color: #666;
+    margin-top: 0.25rem;
+}
+@media (max-width: 800px) {
+    .profile-header-body { flex-direction: column; text-align: center; gap: 1rem; }
+    .profile-stats { grid-template-columns: repeat(3, 1fr); }
+}
+
 .profile-section > h2 {
     text-align: left;
     font-size: 1.8rem;

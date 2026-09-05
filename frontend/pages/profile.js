@@ -1,5 +1,4 @@
-import { getMyListings, deleteListing, getMyClaims } from "../api/index.js";
-import { getMatchedListings } from "../api/index.js";
+import { getMyListings, deleteListing, getMyClaims, getMatchedListings, getUserInfo } from "../api/index.js";
 import { checkSessionAndSetupHeader } from "./auth.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -12,8 +11,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const foundClaimedList = document.getElementById("found-claimed-list");
     const matchedList = document.getElementById("matched-list");
     const myClaimsList = document.getElementById("my-claims-list");
-    const matchNotification = document.getElementById("match-notification");
-    const matchDot = document.getElementById("match-dot");
+    const profileHeader = document.getElementById("profile-header");
+    const avatarText = document.getElementById("profile-avatar-text");
+    const elUsername = document.getElementById("profile-username");
+    const elRealname = document.getElementById("profile-realname");
+    const elStudentid = document.getElementById("profile-studentid");
+    const elPhone = document.getElementById("profile-phone");
+    const elEmail = document.getElementById("profile-email");
+    const elVerified = document.getElementById("profile-verified");
+    const elCreatedAt = document.getElementById("profile-created-at");
+    const statLostPending = document.getElementById("stat-lost-pending");
+    const statLostSolved = document.getElementById("stat-lost-solved");
+    const statFoundUnclaimed = document.getElementById("stat-found-unclaimed");
+    const statFoundClaimed = document.getElementById("stat-found-claimed");
+    const statMatched = document.getElementById("stat-matched");
+    const statClaims = document.getElementById("stat-claims");
 
     const renderCard = (item, isMatched = false) => {
         const card = document.createElement('div');
@@ -88,8 +100,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     };
 
+    const renderUserInfoCard = (user) => {
+        if (!profileHeader) return;
+        if (avatarText && user.username) avatarText.textContent = user.username.slice(0, 1).toUpperCase();
+        if (elUsername) elUsername.textContent = user.username || '-';
+        if (elRealname) elRealname.textContent = `姓名：${user.real_name || '-'}`;
+        if (elStudentid) elStudentid.textContent = `学号：${user.student_id || '-'}`;
+        if (elPhone) elPhone.textContent = `电话：${user.phone || '-'}`;
+        if (elEmail) elEmail.textContent = `邮箱：${user.email || '-'}`;
+        if (elVerified) {
+            const ok = (String(user.is_verified) === '1' || user.is_verified === true);
+            elVerified.textContent = ok ? '已认证邮箱' : '邮箱未认证';
+            elVerified.className = 'verified-badge' + (ok ? ' verified-ok' : ' verified-no');
+        }
+        if (elCreatedAt && user.created_at) {
+            elCreatedAt.textContent = `注册时间：${new Date(user.created_at).toLocaleString()}`;
+        }
+        profileHeader.style.display = 'block';
+    };
+
     const fetchData = async () => {
         try {
+            getUserInfo().then(res => {
+                if (res && res.success && res.data) renderUserInfoCard(res.data);
+            }).catch(err => console.error('加载用户信息失败（非致命）：', err));
+
             const result = await getMyListings();
             if (result.success) {
                 const listings = result.data;
@@ -116,6 +151,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }
                     }
                 });
+
+                if (statLostPending) statLostPending.textContent = categorized.lostPending.length;
+                if (statLostSolved) statLostSolved.textContent = categorized.lostSolved.length;
+                if (statFoundUnclaimed) statFoundUnclaimed.textContent = categorized.foundUnclaimed.length;
+                if (statFoundClaimed) statFoundClaimed.textContent = categorized.foundClaimed.length;
 
                 // Helper to render lists by appending nodes
                 const renderList = (element, data) => {
@@ -217,6 +257,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const result = await getMatchedListings();
             if (result.success) {
                 const data = result.data;
+                if (statMatched) statMatched.textContent = (data || []).length;
                 matchedList.innerHTML = "";
                 if (data.length > 0) {
                     data.forEach(item => {
@@ -276,35 +317,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <strong>物品特征：</strong>${c.claim_features ? (c.claim_features.length > 40 ? c.claim_features.slice(0, 40) + '...' : c.claim_features) : '-'}</p>
                         <div class="card-actions">
                             <a href="details.html?id=${c.found_listing_id}&type=found" class="action-btn btn-view">查看招领详情</a>
-                            <a href="details.html?id=${c.lost_listing_id}&type=lost" class="action-btn btn-edit" style="margin-left:8px;">查看对应失物</a>
+                            <a href="details.html?id=${c.lost_listing_id}&type=lost" class="action-btn btn-view" style="margin-left:8px;">查看对应失物</a>
                         </div>
                     </div>`;
+                card.dataset.id = c.found_listing_id;
+                card.dataset.type = 'found';
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.action-btn')) return;
+                    window.location.href = `details.html?id=${c.found_listing_id}&type=found`;
+                });
                 myClaimsList.appendChild(card);
             });
+            if (statClaims) statClaims.textContent = items.length;
         } catch (error) {
             console.error('fetchMyClaims err:', error);
             myClaimsList.innerHTML = `<p class="message error">加载认领申请记录失败：${error.message || '未知错误'}</p>`;
         }
     };
 
-    // 检查是否有新匹配物品
-    function checkMatchedNotification() {
-        getMatchedListings().then(result => {
-            if (result.success && result.data && result.data.length > 0) {
-                matchNotification.style.display = "block";
-            } else {
-                matchNotification.style.display = "none";
-            }
-        }).catch(() => {
-            matchNotification.style.display = "none";
-        });
-    }
-    if (matchNotification) {
-        matchNotification.addEventListener("click", () => {
-            window.location.href = "profile.html";
-        });
-    }
-    checkMatchedNotification();
-
     fetchData();
-}); 
+});

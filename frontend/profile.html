@@ -29,6 +29,42 @@
     </header>
 
     <main>
+        <section id="profile-header" class="profile-header-card" style="display:none;">
+            <div class="profile-header-body">
+                <div class="profile-avatar">
+                    <span id="profile-avatar-text">?</span>
+                </div>
+                <div class="profile-info">
+                    <h2 id="profile-username">—</h2>
+                    <p class="profile-meta">
+                        <span id="profile-realname">姓名：—</span>
+                        <span class="divider">|</span>
+                        <span id="profile-studentid">学号：—</span>
+                    </p>
+                    <p class="profile-meta">
+                        <span id="profile-phone">电话：—</span>
+                        <span class="divider">|</span>
+                        <span id="profile-email">邮箱：—</span>
+                        <span class="divider">|</span>
+                        <span id="profile-verified" class="verified-badge">—</span>
+                    </p>
+                    <p class="profile-meta muted">
+                        <span id="profile-created-at">注册时间：—</span>
+                        <span class="divider">|</span>
+                        <a href="user_info.html" class="action-btn btn-edit" style="display:inline-block;text-decoration:none;">管理个人信息 / 修改密码</a>
+                    </p>
+                </div>
+            </div>
+            <div class="profile-stats">
+                <div class="stat-item"><strong id="stat-lost-pending">0</strong><span>失物 处理中</span></div>
+                <div class="stat-item"><strong id="stat-lost-solved">0</strong><span>失物 已找回</span></div>
+                <div class="stat-item"><strong id="stat-found-unclaimed">0</strong><span>招领 待认领</span></div>
+                <div class="stat-item"><strong id="stat-found-claimed">0</strong><span>招领 已认领</span></div>
+                <div class="stat-item"><strong id="stat-matched">0</strong><span>匹配物品</span></div>
+                <div class="stat-item"><strong id="stat-claims">0</strong><span>我的认领记录</span></div>
+            </div>
+        </section>
+
         <div class="profile-section">
             <h2>我发布的失物信息</h2>
             <div class="status-category">
@@ -73,7 +109,7 @@
         <div class="profile-section">
             <h2>我提交的认领申请（认领记录）</h2>
             <div class="status-category">
-                <h3>处理中 / 已完成</h3>
+                <h3>全部认领记录（三态：处理中 / 认领成功 / 审核未通过）</h3>
                 <div id="my-claims-list" class="listings-container">
                     <p>加载中...</p>
                 </div>
