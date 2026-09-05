@@ -503,6 +503,7 @@ erDiagram
 | `listing_type` | `enum('lost','found')` | NOT NULL | — | 本用户物品类型（失物/招领） |
 | `source_listing_type` | `enum('lost','found')` | YES | `NULL` | 匹配来源物品类型 |
 | `source_listing_id` | `int` | YES | `NULL` | 匹配来源物品ID |
+| `type` | `enum('match','claim')` | NOT NULL | `'match'` | **消息类型区分**：`match` = 系统自动匹配通知（功能5 旧/新数据均使用此值）；`claim` = 认领申请通知（功能6 失主提交认领申请后，向招领主人写入，用于消息中心展示「您有新的认领申请」）。功能6 ALTER 新增列，DEFAULT 'match' 保证旧数据无需迁移。 |
 | `is_read` | `tinyint(1)` | YES | `'0'` | 是否已读，默认0 |
 | `created_at` | `datetime` | YES | `CURRENT_TIMESTAMP` | 通知创建时间 |
 
@@ -517,6 +518,7 @@ erDiagram
 
 #### 索引
 - `KEY user_id (user_id)`（DB_create.sql 中仅定义此索引）
+- `KEY idx_user_type (user_id, type)`（功能6 新增复合索引，加速 get_messages 按用户+类型筛选）
 
 > 注：`database.php` 自动建表版本会额外加 `INDEX(listing_id)`，但 DB_create.sql 中未包含。
 
@@ -592,6 +594,11 @@ erDiagram
 | `found_listing_id` | `int` | NOT NULL | — | FK → found_listings |
 | `lost_user_id` | `int` | NOT NULL | — | 失主 user_id，FK → users |
 | `found_user_id` | `int` | NOT NULL | — | 招领发布者 user_id，FK → users |
+| `claim_features` | `varchar(500)` | NOT NULL | — | **认领申请三要素 1/3**：物品特征（必填，如颜色、编号、特殊标识等） |
+| `lost_story` | `text` | NOT NULL | — | **认领申请三要素 2/3**：丢失经过（必填，详细描述丢失场景与过程） |
+| `verification_info` | `text` | YES | `NULL` | **认领申请三要素 3/3**：其他验证信息（选填，如可公开的证件号后 4 位、购买截图描述等私密验证线索） |
+| `created_at` | `timestamp` | NOT NULL | `CURRENT_TIMESTAMP` | 认领申请提交时间 |
+| `updated_at` | `timestamp` | NOT NULL | `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` | 申请状态最后更新时间 |
 | `status` | `enum('processing','completed')` | NOT NULL | `'processing'` | 处理状态 |
 | `solved_at` | `timestamp` | YES | `CURRENT_TIMESTAMP` | 记录创建/解决时间 |
 
@@ -599,7 +606,7 @@ erDiagram
 - `PRIMARY KEY (solve_id)`
 
 #### 唯一键
-- **无**
+- `UNIQUE KEY uk_lost_found_user (lost_listing_id, found_listing_id, lost_user_id)`：防止同一失主对同一对（失物+招领）重复提交申请，`submit_claim.php` 冲突返回 HTTP 409。
 
 #### 外键
 
@@ -620,9 +627,10 @@ erDiagram
 - **未设置**
 
 #### 备注
-- `status` ENUM 取值：`'processing'`（处理中，默认）、`'completed'`（已完成）。
+- `status` ENUM 取值：`'processing'`（处理中，默认 = 认领申请已提交，待招领主人在功能7 中审核通过/拒绝）、`'completed'`（已完成 = 认领审核通过，物品已归还失主）。
 - **四个 FK 全部 RESTRICT**，这意味着在删除物品/用户前若有 solve 记录引用，删除会被阻止。这也是 `confirm_delete.php` 删除用户前必须先 `DELETE FROM solve ...` 清理关联记录的原因。
-- 当前**前端没有"认领申请/认领审核"API 和页面**，solve 表在源码中仅 `confirm_delete.php` 做删除清理操作，**无任何 API 对 solve 做 INSERT 或 UPDATE**。该表**当前 API 主流程未实际使用**。
+- **三要素文本字段（claim_features / lost_story / verification_info）已在功能6（认领申请）中启用，API 主流程中的 submit_claim.php 中写入；招领主人在 get_claims_for_my_found.php 中查看。
+- **uk_lost_found_user 三列组合 UNIQUE 防止重复申请：同一失主对同一对失物+招领只允许提交 1 条 processing 申请。
 
 ---
 

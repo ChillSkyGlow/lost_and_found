@@ -18,59 +18,77 @@ $messages = [];
 $debug_info = [];
 
 try {
-    // 1. 匹配消息（使用新的matched_notifications表）
-    $sql_match = "SELECT 
-        m.id, 
-        m.listing_id, 
-        'match' as type, 
+    $base_select_fields = "m.id,
+        m.listing_id,
+        COALESCE(m.type, 'match') as type,
         m.listing_type,
         m.created_at as time,
-        CASE 
+        CASE
             WHEN m.listing_type = 'lost' THEN l.item_name
             WHEN m.listing_type = 'found' THEN f.item_name
             ELSE 'Unknown'
-        END as matched_item_name,  -- 对方物品的名称
-        m.source_listing_id, -- 我方物品ID
-        m.source_listing_type, -- 我方物品类型
+        END as matched_item_name,
+        m.source_listing_id,
+        m.source_listing_type,
         CASE
             WHEN m.source_listing_type = 'lost' THEN sl.item_name
             WHEN m.source_listing_type = 'found' THEN sf.item_name
             ELSE 'Unknown'
-        END as source_item_name -- 我方物品的名称
-        FROM matched_notifications m
+        END as source_item_name";
+    $from_join = "FROM matched_notifications m
         LEFT JOIN lost_listings l ON m.listing_type = 'lost' AND m.listing_id = l.lost_listing_id
         LEFT JOIN found_listings f ON m.listing_type = 'found' AND m.listing_id = f.found_listing_id
         LEFT JOIN lost_listings sl ON m.source_listing_type = 'lost' AND m.source_listing_id = sl.lost_listing_id
         LEFT JOIN found_listings sf ON m.source_listing_type = 'found' AND m.source_listing_id = sf.found_listing_id
-        WHERE m.user_id = ? AND m.is_read = 0
-        ORDER BY m.created_at DESC";
+        WHERE m.user_id = ? AND m.is_read = 0";
+
+    $sql_match = "SELECT {$base_select_fields} {$from_join} AND COALESCE(m.type, 'match') = 'match' ORDER BY m.created_at DESC";
     $stmt = $conn->prepare($sql_match);
     if (!$stmt) {
-        throw new Exception("准备matched_notifications查询失败: " . $conn->error);
+        throw new Exception("准备matched_notifications match查询失败: " . $conn->error);
     }
-    
     $stmt->bind_param('i', $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
-    
-    // 记录匹配消息查询结果
     $debug_info['match_query'] = $sql_match;
     $debug_info['match_count'] = $result->num_rows;
-    
     while ($row = $result->fetch_assoc()) {
         $messages[] = [
             'id' => $row['id'],
             'type' => 'match',
-            'listing_id' => $row['listing_id'], // 对方的ID
-            'listing_type' => $row['listing_type'], // 对方的类型
+            'listing_id' => $row['listing_id'],
+            'listing_type' => $row['listing_type'],
             'time' => $row['time'],
-            'item_name' => $row['matched_item_name'], // 对方的名称
-            'source_listing_id' => $row['source_listing_id'], // 我方的ID
-            'source_listing_type' => $row['source_listing_type'], // 我方的类型
-            'source_item_name' => $row['source_item_name'] // 我方的名称
+            'item_name' => $row['matched_item_name'],
+            'source_listing_id' => $row['source_listing_id'],
+            'source_listing_type' => $row['source_listing_type'],
+            'source_item_name' => $row['source_item_name']
         ];
     }
     $stmt->close();
+
+    $sql_claim = "SELECT {$base_select_fields} {$from_join} AND COALESCE(m.type, 'match') = 'claim' ORDER BY m.created_at DESC";
+    $stmt_c = $conn->prepare($sql_claim);
+    if ($stmt_c) {
+        $stmt_c->bind_param('i', $user_id);
+        $stmt_c->execute();
+        $res_c = $stmt_c->get_result();
+        $debug_info['claim_count'] = $res_c->num_rows;
+        while ($row = $res_c->fetch_assoc()) {
+            $messages[] = [
+                'id' => $row['id'],
+                'type' => 'claim',
+                'listing_id' => $row['listing_id'],
+                'listing_type' => $row['listing_type'],
+                'time' => $row['time'],
+                'item_name' => $row['matched_item_name'],
+                'source_listing_id' => $row['source_listing_id'],
+                'source_listing_type' => $row['source_listing_type'],
+                'source_item_name' => $row['source_item_name']
+            ];
+        }
+        $stmt_c->close();
+    }
 
     // 2.1 失物评论
     $sql_lost_comment = "SELECT 

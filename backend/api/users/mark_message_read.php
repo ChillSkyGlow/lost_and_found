@@ -26,8 +26,8 @@ $message_type = $_POST['message_type'];
 $conn = get_db_connection();
 
 try {
-    if ($message_type === 'match') {
-        // 标记匹配消息为已读
+    if ($message_type === 'match' || $message_type === 'claim') {
+        // 标记匹配消息/认领申请消息为已读（均存储在 matched_notifications 表中，通过 type 列区分）
         $sql = "UPDATE matched_notifications SET is_read = 1 WHERE id = ? AND user_id = ?";
         $stmt = $conn->prepare($sql);
         if (!$stmt) {

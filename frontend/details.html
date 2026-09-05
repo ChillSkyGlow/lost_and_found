@@ -33,11 +33,16 @@
     <main>
         <!-- 详情容器 -->
         <div id="details-container" class="details-section">
-            <!-- 物品详情将通过JS动态插入这里 -->
-            
             <p>正在加载详情...</p>
         </div>
         <div id="details-map-container" style="height: 300px; width: 100%; margin-top: 1rem; border: 1px solid #ddd;"></div>
+
+        <!-- 认领申请区域（仅 type=found 的招领详情页有效：失主提交表单 / 招领主人查看收到的申请列表） -->
+        <div id="claim-section" class="comments-section" style="display:none;">
+            <h2 id="claim-section-title">认领申请</h2>
+            <div id="claim-message-box"></div>
+            <div id="claim-content-area"></div>
+        </div>
 
         <!-- 评论区 -->
         <div id="comments-section" class="comments-section">

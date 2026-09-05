@@ -103,6 +103,14 @@ export const updateListing = (formData) => apiCall('/listings/update_listing.php
 export const updateListingStatus = (listing_id, type) => apiCall('/listings/update_listing_status.php', { method: 'POST', body: objectToFormData({ listing_id, type }) });
 export const deleteListing = (listing_id, type) => apiCall('/listings/delete_listing.php', { method: 'POST', body: objectToFormData({ listing_id, type }) });
 
+// --- Claim / Solve Endpoints（功能6：认领申请） ---
+export const submitClaim = (payload) => apiCall('/listings/submit_claim.php', { method: 'POST', body: objectToFormData(payload) });
+export const getClaimsForMyFound = (found_listing_id = null) => {
+    const q = found_listing_id ? `?found_listing_id=${encodeURIComponent(found_listing_id)}` : '';
+    return apiCall(`/listings/get_claims_for_my_found.php${q}`, { method: 'GET' });
+};
+export const getMyClaims = () => apiCall('/listings/get_my_claims.php', { method: 'GET' });
+
 // --- Comment Endpoints ---
 export const postComment = (listingId, content, type) => apiCall('/comments/post_comment.php', { method: 'POST', body: objectToFormData({ listing_id: listingId, content, type }) });
 

@@ -146,10 +146,12 @@ CREATE TABLE `matched_notifications` (
   `listing_type` enum('lost','found') NOT NULL,
   `source_listing_type` enum('lost','found') DEFAULT NULL,
   `source_listing_id` int DEFAULT NULL,
+  `type` enum('match','claim') NOT NULL DEFAULT 'match' COMMENT '消息类型：match=系统匹配通知，claim=认领申请通知',
   `is_read` tinyint(1) DEFAULT '0',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`)
+  KEY `user_id` (`user_id`),
+  KEY `idx_user_type` (`user_id`,`type`)
 ) ENGINE=InnoDB AUTO_INCREMENT=125 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -208,9 +210,15 @@ CREATE TABLE `solve` (
   `found_listing_id` int NOT NULL,
   `lost_user_id` int NOT NULL,
   `found_user_id` int NOT NULL,
+  `claim_features` varchar(500) NOT NULL COMMENT '物品特征（必填，认领申请三要素之一）',
+  `lost_story` text NOT NULL COMMENT '丢失经过（必填，认领申请三要素之二）',
+  `verification_info` text COMMENT '其他验证信息（选填，认领申请三要素之三）',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '认领申请提交时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '申请状态最后更新时间',
   `status` enum('processing','completed') NOT NULL DEFAULT 'processing',
   `solved_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`solve_id`),
+  UNIQUE KEY `uk_lost_found_user` (`lost_listing_id`,`found_listing_id`,`lost_user_id`),
   KEY `lost_listing_id` (`lost_listing_id`),
   KEY `found_listing_id` (`found_listing_id`),
   KEY `lost_user_id` (`lost_user_id`),

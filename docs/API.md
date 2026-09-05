@@ -1812,7 +1812,226 @@ SELECT * FROM found_listings WHERE user_id = ? AND status = 'unclaimed'
 
 ---
 
-### 3.9 发布测试接口 test_publish
+### 3.9 提交认领申请 submit_claim
+
+- 文件：`backend/api/listings/submit_claim.php`
+- URL：`/backend/api/listings/submit_claim.php`
+- Method：仅 POST（FormData multipart/form-data 或 application/x-www-form-urlencoded；**禁止 JSON，因为读取 $_POST**）
+- 登录要求：必须（`requireLogin` + `$_SESSION['user_id']`）
+- 权限：仅失物发布者本人（`lost_listings.user_id === 当前 user_id`）；招领发布者≠当前用户（禁止自己认领自己的招领）
+
+#### 请求参数（FormData 字段，共 5 项）
+
+| 参数 | 类型 | 必填 | 长度 | 说明 |
+|---|---|---|---|---|
+| found_listing_id | int | 是 | >0 | 招领物品 ID（found_listings.found_listing_id），必须 `status='unclaimed'` |
+| lost_listing_id | int | 是 | >0 | 失主本人发布的失物 ID（lost_listings.lost_listing_id），必须 `status='pending'` |
+| claim_features | string | 是 | 1~500 | **认领三要素 1：物品特征描述**（如颜色、花纹、刻印、内容物等） |
+| lost_story | string | 是 | ≥1 | **认领三要素 2：丢失经过**（丢失时的场景、具体细节） |
+| verification_info | string | 否 | 0~65535 | **认领三要素 3：其他验证信息**（如校园卡学号、钱包内消费凭证等，空串转 NULL 写入） |
+
+#### 成功响应（HTTP 200）
+
+```json
+{
+  "success": true,
+  "message": "认领申请提交成功，请等待招领发布者审核",
+  "data": {
+    "solve_id": 5,
+    "status": "processing",
+    "found_listing_id": 74,
+    "lost_listing_id": 135
+  }
+}
+```
+
+> 写入 solve 表后 `status='processing'`（表示等待招领主人审核，功能7审核通过→'completed'）；**不自动把 found_listings.status 改为 claimed**（避免失主恶意申请），改状态动作留给功能7 审核通过。
+
+#### 失败响应（HTTP 非 200 / success=false）
+
+| 场景 | HTTP | success=false message |
+|---|---|---|
+| 未登录 | 401 | 未登录 |
+| 参数缺失/非数字/≤0 | 400 | 参数错误：xxx 为必填且必须为正整数 |
+| claim_features 空 / 长度>500 | 400 | 物品特征不能为空（或超过 500 字） |
+| lost_story 空 | 400 | 丢失经过不能为空 |
+| found_listing_id 不存在 | 400 | 招领信息不存在 |
+| found_listing.status != 'unclaimed' | 400 | 该招领已被认领或已解决，不再接受申请 |
+| 招领发布者 user_id === 当前 user_id | 400 | 您不能认领自己发布的招领信息 |
+| lost_listing_id 不存在 | 400 | 失物信息不存在 |
+| lost_listings.user_id !== 当前 user_id | 403 | 仅失物发布者本人可以使用该失物记录提交认领申请 |
+| lost_listings.status != 'pending' | 400 | 该失物已找回或已关闭，不能用于提交认领申请 |
+| 重复提交（同一 (lost,found,user) 组合已存在 solve 行） | 409 | 您已对该失物-招领对提交过认领申请，请勿重复提交 |
+| DB 事务失败/锁超时 | 500 | 认领申请提交失败：xxx |
+
+#### 数据库操作（全部位于 `mysqli_begin_transaction()` 事务内，隔离级别 READ COMMITTED）
+
+```sql
+-- ① 行级锁：防止并发重复申请 & 状态竞争
+SELECT * FROM found_listings WHERE found_listing_id = ? FOR UPDATE;
+SELECT * FROM lost_listings  WHERE lost_listing_id  = ? FOR UPDATE;
+
+-- ② UNIQUE 预查（FOR UPDATE 避免幻读），命中则直接返回 409
+SELECT solve_id FROM solve
+ WHERE lost_listing_id = ? AND found_listing_id = ? AND lost_user_id = ?
+   FOR UPDATE;
+
+-- ③ 写入 solve 表（三要素 + 双 user_id + 双 listing_id + status=processing）
+INSERT INTO solve
+  (lost_listing_id, found_listing_id, lost_user_id, found_user_id,
+   status, claim_features, lost_story, verification_info)
+VALUES (?, ?, ?, ?, 'processing', ?, ?, ?);
+
+-- ④ 给招领主人写认领申请通知（若已存在同 user+listing+type=claim 行则跳过）
+INSERT IGNORE INTO matched_notifications
+  (user_id, listing_id, listing_type, source_listing_type, source_listing_id, type, is_read)
+VALUES (found_user_id, found_listing_id, 'found', 'lost', lost_listing_id, 'claim', 0);
+
+-- ⑤ COMMIT
+```
+
+> **UNIQUE 兜底**：`ALTER TABLE solve ADD UNIQUE KEY uk_lost_found_user(lost_listing_id,found_listing_id,lost_user_id)`；即使 INSERT 前预查漏网，1062 冲突仍被捕获 → 409。
+
+#### 联动副作用（DB commit 之后，try/catch 隔离失败不回滚）
+
+- **站内通知**（④已写）：招领主人 get_messages.php 读取到 type=claim 行 → 消息中心「认领申请消息」分类渲染
+- **PHPMailer 邮件**：`send_notification_email(found_user_email, '新的认领申请', 邮件正文)`；send 失败 → `error_log` 记录，**success 仍返回 true**
+
+#### 备注
+
+- 遵循 publish_secure.php 同款「邮件隔离」模式：`DB commit → try { send mail } catch { error_log }`，不因邮件 SMTP 故障让 solve 行回滚
+- 行锁顺序：先 `found_listings FOR UPDATE` 再 `lost_listings FOR UPDATE`，全链路统一顺序避免死锁
+- 申请通过 / 拒绝按钮留待功能7（认领审核）实现，本 API 只负责把数据写入 `processing` 状态
+
+---
+
+### 3.10 查询我作为招领主人收到的认领申请 get_claims_for_my_found
+
+- 文件：`backend/api/listings/get_claims_for_my_found.php`
+- URL：`/backend/api/listings/get_claims_for_my_found.php`
+- Method：GET（query string）
+- 登录要求：必须（`requireLogin`）
+- 权限：仅招领发布者本人（WHERE `s.found_user_id = $_SESSION['user_id']`）
+
+#### 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| found_listing_id | int | 否 | 只查某一条招领收到的申请；空/缺省则查当前用户名下**全部招领**收到的所有申请 |
+
+#### 成功响应（200）
+
+```json
+{
+  "success": true,
+  "message": "获取认领申请列表成功",
+  "data": {
+    "total": 1,
+    "items": [
+      {
+        "solve_id": 5,
+        "status": "processing",
+        "created_at": "2026-09-05 18:29:51",
+        "updated_at": "2026-09-05 18:29:51",
+        "found_listing_id": 74,
+        "found_title": "校园学生卡",
+        "found_image": "uploads/xxx.jpg",
+        "lost_listing_id": 135,
+        "lost_title": "校园学生卡",
+        "lost_image": "uploads/yyy.jpg",
+        "lost_user_id": 28,
+        "lost_username": "f5_lost2_7788",
+        "lost_email": "f5_lost2_7788@test.local",
+        "claim_features": "蓝色挂绳，印有学校校徽",
+        "lost_story": "9月5日中午在食堂三楼吃饭后遗失",
+        "verification_info": "学号 2021xxxxxx，姓名 XXX"
+      }
+    ]
+  }
+}
+```
+
+> 最多 100 条，`ORDER BY created_at DESC`
+
+#### 数据库操作
+
+```sql
+SELECT s.*,
+       f.item_name  as found_title,  f.image_path as found_image,
+       l.item_name  as lost_title,   l.image_path as lost_image,
+       u.username   as lost_username, u.email as lost_email
+FROM solve s
+LEFT JOIN found_listings f ON f.found_listing_id = s.found_listing_id
+LEFT JOIN lost_listings  l ON l.lost_listing_id  = s.lost_listing_id
+LEFT JOIN users          u ON u.user_id          = s.lost_user_id
+WHERE s.found_user_id = ?
+  [ AND s.found_listing_id = ? ]   -- query 带 found_listing_id 时才加
+ORDER BY s.created_at DESC LIMIT 100;
+```
+
+---
+
+### 3.11 查询我作为失主提交过的认领申请 get_my_claims
+
+- 文件：`backend/api/listings/get_my_claims.php`
+- URL：`/backend/api/listings/get_my_claims.php`
+- Method：GET
+- 登录要求：必须（`requireLogin`）
+- 权限：仅失物发布者本人（WHERE `s.lost_user_id = $_SESSION['user_id']`）
+
+#### 请求参数
+
+无
+
+#### 成功响应（200）
+
+```json
+{
+  "success": true,
+  "message": "获取我的认领申请成功",
+  "data": {
+    "total": 1,
+    "items": [
+      {
+        "solve_id": 5,
+        "status": "processing",
+        "created_at": "2026-09-05 18:29:51",
+        "updated_at": "2026-09-05 18:29:51",
+        "found_listing_id": 74,
+        "found_title": "校园学生卡",
+        "found_image": "uploads/xxx.jpg",
+        "found_user_id": 29,
+        "found_username": "f5_found2_7788",
+        "lost_listing_id": 135,
+        "lost_title": "校园学生卡",
+        "claim_features": "蓝色挂绳，印有学校校徽",
+        "lost_story": "9月5日中午在食堂三楼吃饭后遗失",
+        "verification_info": "学号 2021xxxxxx，姓名 XXX"
+      }
+    ]
+  }
+}
+```
+
+#### 数据库操作
+
+```sql
+SELECT s.*,
+       f.item_name as found_title, f.image_path as found_image,
+       f.user_id   as found_user_id,
+       uf.username as found_username,
+       l.item_name as lost_title
+FROM solve s
+LEFT JOIN found_listings f  ON f.found_listing_id = s.found_listing_id
+LEFT JOIN lost_listings  l  ON l.lost_listing_id  = s.lost_listing_id
+LEFT JOIN users          uf ON uf.user_id         = f.user_id
+WHERE s.lost_user_id = ?
+ORDER BY s.created_at DESC LIMIT 100;
+```
+
+---
+
+### 3.12 发布测试接口 test_publish
 
 - 文件：`backend/api/listings/test_publish.php`
 - URL：`/backend/api/listings/test_publish.php`
@@ -1859,7 +2078,7 @@ SELECT * FROM found_listings WHERE user_id = ? AND status = 'unclaimed'
 
 ---
 
-### 3.10 物品路由入口 index.php
+### 3.13 物品路由入口 index.php
 
 - 文件：`backend/api/listings/index.php`
 - URL：`/backend/api/listings/index.php`

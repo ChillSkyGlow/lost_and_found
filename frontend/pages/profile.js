@@ -1,4 +1,4 @@
-import { getMyListings, deleteListing } from "../api/index.js";
+import { getMyListings, deleteListing, getMyClaims } from "../api/index.js";
 import { getMatchedListings } from "../api/index.js";
 import { checkSessionAndSetupHeader } from "./auth.js";
 
@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const foundUnclaimedList = document.getElementById("found-unclaimed-list");
     const foundClaimedList = document.getElementById("found-claimed-list");
     const matchedList = document.getElementById("matched-list");
+    const myClaimsList = document.getElementById("my-claims-list");
     const matchNotification = document.getElementById("match-notification");
     const matchDot = document.getElementById("match-dot");
 
@@ -135,6 +136,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 renderList(foundClaimedList, categorized.foundClaimed);
                 // 获取并渲染匹配度较高的物品
                 fetchMatchedListings();
+                // 获取并渲染我提交的认领申请记录
+                fetchMyClaims();
 
                 // Add event listeners for delete buttons
                 document.querySelectorAll(".btn-delete").forEach((button) => {
@@ -228,6 +231,51 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (error) {
             matchedList.innerHTML = `<p class="message error">加载失败，请重试。</p>`;
+        }
+    };
+
+    // 获取并渲染我作为失主提交的认领申请记录（认领记录）
+    const fetchMyClaims = async () => {
+        if (!myClaimsList) return;
+        try {
+            const res = await getMyClaims();
+            myClaimsList.innerHTML = '';
+            if (!res || !res.success) {
+                myClaimsList.innerHTML = `<p class="message error">${res ? res.message : '加载失败'}</p>`;
+                return;
+            }
+            const items = (res.data && res.data.items) || [];
+            if (items.length === 0) {
+                myClaimsList.innerHTML = '<p>暂无认领申请记录</p>';
+                return;
+            }
+            items.forEach(c => {
+                const card = document.createElement('div');
+                card.className = 'card listing-card';
+                const imgUrl = c.found_image ? `../backend/${c.found_image}` : 'images/default.png';
+                const statusBadge = c.status === 'processing'
+                    ? '<span class="status-badge processing">处理中（待审核）</span>'
+                    : '<span class="status-badge completed">已完成</span>';
+                card.innerHTML = `
+                    <img src="${imgUrl}" alt="${c.found_title || '招领物品'}" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">招领：${c.found_title || '未命名'}</h3>
+                        <p class="card-date">申请时间：${new Date(c.created_at).toLocaleString()}</p>
+                        <p><strong>招领发布者：</strong>${c.found_username || '-'}</p>
+                        <p><strong>对应失物：</strong>${c.lost_title || '-'}</p>
+                        <p><strong>状态：</strong>${statusBadge}</p>
+                        <p style="font-size:0.92em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <strong>物品特征：</strong>${c.claim_features ? (c.claim_features.length > 40 ? c.claim_features.slice(0, 40) + '...' : c.claim_features) : '-'}</p>
+                        <div class="card-actions">
+                            <a href="details.html?id=${c.found_listing_id}&type=found" class="action-btn btn-view">查看招领详情</a>
+                            <a href="details.html?id=${c.lost_listing_id}&type=lost" class="action-btn btn-edit" style="margin-left:8px;">查看对应失物</a>
+                        </div>
+                    </div>`;
+                myClaimsList.appendChild(card);
+            });
+        } catch (error) {
+            console.error('fetchMyClaims err:', error);
+            myClaimsList.innerHTML = `<p class="message error">加载认领申请记录失败：${error.message || '未知错误'}</p>`;
         }
     };
 

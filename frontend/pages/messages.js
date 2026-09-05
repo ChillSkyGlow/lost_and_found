@@ -26,21 +26,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     await checkSessionAndSetupHeader();
     const commentMessagesList = $('#comment-messages-list');
     const matchMessagesList = $('#match-messages-list');
+    const claimMessagesList = $('#claim-messages-list');
     
     try {
-        // 显示加载状态
         commentMessagesList.innerHTML = '<p>正在加载评论消息...</p>';
         matchMessagesList.innerHTML = '<p>正在加载匹配消息...</p>';
+        if (claimMessagesList) claimMessagesList.innerHTML = '<p>正在加载认领申请消息...</p>';
         
-        // 调用API获取消息
         const result = await getMessages();
         
-        // 显示API原始响应（调试用）
         console.log('API响应:', result);
         
-        // 分离评论消息和匹配消息
         const commentMessages = [];
         const matchMessages = [];
+        const claimMessages = [];
         
         if (result.success && result.data && result.data.length > 0) {
             result.data.forEach(msg => {
@@ -48,6 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     matchMessages.push(msg);
                 } else if (msg.type === 'comment') {
                     commentMessages.push(msg);
+                } else if (msg.type === 'claim') {
+                    claimMessages.push(msg);
                 }
             });
         }
@@ -109,10 +110,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             matchMessagesList.innerHTML = '<p class="no-messages">暂无匹配消息</p>';
         }
+
+        if (claimMessagesList) {
+            if (claimMessages.length > 0) {
+                claimMessagesList.innerHTML = claimMessages.map(msg => {
+                    const sourceItemName = msg.source_item_name ? `"${msg.source_item_name}"` : '失主的物品';
+                    const myItemName = msg.item_name ? `"${msg.item_name}"` : '您发布的招领';
+                    return `<div class="message-item claim-message" data-id="${msg.listing_id}" data-type="${msg.listing_type}" data-message-id="${msg.id}" data-message-type="claim">
+                        失主${sourceItemName}的发布者对您发布的招领${myItemName}提交了认领申请，点击查看详情<span class="message-time">${msg.time || ''}</span>
+                    </div>`;
+                }).join('');
+                claimMessagesList.querySelectorAll('.message-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const type = this.getAttribute('data-type');
+                        const messageId = this.getAttribute('data-message-id');
+                        const messageType = this.getAttribute('data-message-type');
+                        markMessageAsRead(messageId, messageType, type);
+                        window.location.href = `details.html?id=${id}&type=${type}`;
+                    });
+                });
+            } else {
+                claimMessagesList.innerHTML = '<p class="no-messages">暂无认领申请消息</p>';
+            }
+        }
         
     } catch (e) {
         console.error('消息加载错误:', e);
         commentMessagesList.innerHTML = `<p style="color:#d9534f;">加载评论消息失败: ${e.message}</p>`;
         matchMessagesList.innerHTML = `<p style="color:#d9534f;">加载匹配消息失败: ${e.message}</p>`;
+        if (claimMessagesList) claimMessagesList.innerHTML = `<p style="color:#d9534f;">加载认领申请消息失败: ${e.message}</p>`;
     }
-}); 
+});
