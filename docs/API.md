@@ -1108,11 +1108,22 @@ ORDER BY created_at DESC
   ],
   "debug": {
     "match_count": 1,
+    "claim_count": 1,
+    "claim_approved_count": 0,
+    "claim_rejected_count": 0,
     "lost_comment_count": 0,
     "found_comment_count": 1,
-    "total_messages": 2,
+    "total_messages": 3,
     "user_id": 1,
-    "total_notifications": 2
+    "total_notifications": 8,
+    "count_by_type": {
+      "match": 1,
+      "claim": 1,
+      "claim_approved": 0,
+      "claim_rejected": 0,
+      "comment": 1
+    },
+    "count_review_total": 0
   }
 }
 ```
@@ -1156,17 +1167,17 @@ WHERE l.user_id = ? AND c.user_id != ? AND c.is_read = 0
 
 - 文件：`backend/api/users/mark_message_read.php`
 - URL：`/backend/api/users/mark_message_read.php`
-- Method：源码中未确认
+- Method：`POST`（读取 `$_POST` 表单数据；**禁止 JSON**，否则 `$_POST` 为空）
 - 登录要求：必须（检查 `$_SESSION['user_id']`）
-- 权限：本人
+- 权限：本人（match/claim/claim_approved/claim_rejected：`UPDATE ... AND user_id = ?`；comment：JOIN 物品表 `AND l.user_id = 当前登录id`，禁止越权标记他人评论已读）
 
 #### 请求参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | message_id | int | 是 | 待标记 ID |
-| message_type | string | 是 | `"match"` 或 `"comment"` |
-| listing_type | string | 条件必填 | `message_type=comment` 时必填 `"lost"` / `"found"` |
+| message_type | string | 是 | `"match"` / `"claim"` / `"claim_approved"` / `"claim_rejected"`（四种均写 matched_notifications）或 `"comment"`（写 lost_comment/found_comment） |
+| listing_type | string | 条件必填 | `message_type=comment` 时必填 `"lost"` / `"found"`，决定写哪张评论表 |
 
 > 来源：`$_POST`
 
@@ -2766,6 +2777,7 @@ VALUES (?, ?, ?, 0)
 | `deleteListing(listing_id, type)` | POST | `listings/delete_listing.php` | FormData |
 | `postComment(listingId, content, type)` | POST | `comments/post_comment.php` | FormData (type, listing_id, content) |
 | `getMessages()` | GET | `users/get_messages.php` | - |
+| `markMessageRead(payload)` | POST | `users/mark_message_read.php` | FormData（message_id, message_type；comment时加listing_type）；已内置objectToFormData封装，messages.js 已切换使用 |
 
 ---
 
@@ -2780,7 +2792,7 @@ VALUES (?, ?, ?, 0)
 | `delete_account.js` | `POST users/request_delete_code.php` + `POST users/confirm_delete.php` | 直接 fetch |
 | `publish.js` | `POST listings/publish_secure.php` | **未用封装的 `publishListing()`（该封装走的是 `publish_listing.php`），直接 fetch 到 `publish_secure.php`** |
 | 状态更新相关页面 | `POST listings/update_listing_status.php` | 直接 fetch |
-| 标记已读相关 | `POST users/mark_message_read.php` | 直接 fetch |
+| 标记已读相关 | `POST users/mark_message_read.php` | messages.js 已改为 api/index.js 封装 `markMessageRead(payload)` 调用 |
 | 管理员全部接口（`login.js`, `dashboard.js`） | `admin/login.php`, `admin/get_tables.php`, `admin/get_table_data.php`, `admin/update_row.php`, `admin/delete_row.php` | 直接 fetch，api/index.js 中无管理员封装 |
 | 通知调试 | `backend/api/debug_notifications.php` | 直接 fetch |
 | 邮箱验证流程 | `POST auth/verify_email.php`, `POST auth/resend_verification_code.php` | 直接 fetch，封装中无这两个函数 |

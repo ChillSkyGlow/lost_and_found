@@ -214,9 +214,17 @@ try {
         }
     }
 
-    // 添加调试信息
+    // 添加调试信息 + 分类型未读计数（供前端消息顶部统计与导航红点）
     $debug_info['total_messages'] = count($messages);
     $debug_info['user_id'] = $user_id;
+    $count_by_type = ['match' => 0, 'claim' => 0, 'claim_approved' => 0, 'claim_rejected' => 0, 'comment' => 0];
+    foreach ($messages as $m) {
+        $t = $m['type'] ?? 'match';
+        if (!isset($count_by_type[$t])) $count_by_type[$t] = 0;
+        $count_by_type[$t]++;
+    }
+    $debug_info['count_by_type'] = $count_by_type;
+    $debug_info['count_review_total'] = ($count_by_type['claim_approved'] ?? 0) + ($count_by_type['claim_rejected'] ?? 0);
     
     // 检查matched_notifications表中是否有数据
     $check_sql = "SELECT COUNT(*) as count FROM matched_notifications";

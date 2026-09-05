@@ -1,6 +1,50 @@
-import { checkSession, logout } from '../api/index.js';
+import { checkSession, logout, getMessages } from '../api/index.js';
 
 let currentUser = null;
+let messageBadgeInstalled = false;
+
+const installMessageUnreadBadge = async (userNav) => {
+    if (!userNav || messageBadgeInstalled) return;
+    messageBadgeInstalled = true;
+    let messagesLink = userNav.querySelector('a[href="messages.html"]');
+    if (!messagesLink) {
+        messagesLink = document.createElement('a');
+        messagesLink.href = 'messages.html';
+        messagesLink.className = 'messages-nav-link';
+        messagesLink.textContent = '消息中心';
+        const logoutBtn = userNav.querySelector('#logout-btn');
+        if (logoutBtn) {
+            logoutBtn.insertAdjacentElement('beforebegin', messagesLink);
+        } else {
+            userNav.appendChild(messagesLink);
+        }
+    }
+    messagesLink.classList.add('messages-nav-link');
+    const wrapper = document.createElement('span');
+    wrapper.className = 'messages-nav-wrapper';
+    messagesLink.parentNode.insertBefore(wrapper, messagesLink);
+    wrapper.appendChild(messagesLink);
+    let badge = document.createElement('span');
+    badge.className = 'message-unread-dot';
+    badge.style.display = 'none';
+    wrapper.appendChild(badge);
+    const refreshBadge = async () => {
+        try {
+            const res = await getMessages();
+            const total = (res && res.data) ? res.data.length : 0;
+            if (total > 0) {
+                badge.textContent = total > 99 ? '99+' : String(total);
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (_) {
+            badge.style.display = 'none';
+        }
+    };
+    refreshBadge();
+    setInterval(refreshBadge, 45 * 1000);
+};
 
 /**
  * Sets up the header navigation based on user login status.
@@ -22,6 +66,7 @@ function setupHeader(user) {
         // 显示已登录导航，隐藏未登录导航
         if (userNav) {
             userNav.style.display = 'flex';
+            installMessageUnreadBadge(userNav);
             // 设置登出按钮事件
             const logoutBtn = userNav.querySelector('#logout-btn');
         if (logoutBtn) {

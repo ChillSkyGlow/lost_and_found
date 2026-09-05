@@ -1,22 +1,13 @@
-import { getMessages } from '../api/index.js';
+import { getMessages, markMessageRead } from '../api/index.js';
 import { checkSessionAndSetupHeader } from './auth.js';
 import { $ } from '../utils/dom.js';
 
 // 添加标记消息为已读的函数
 async function markMessageAsRead(messageId, messageType, listingType = null) {
     try {
-        const formData = new FormData();
-        formData.append('message_id', messageId);
-        formData.append('message_type', messageType);
-        if (messageType === 'comment' && listingType) {
-            formData.append('listing_type', listingType);
-        }
-        
-        await fetch('../backend/api/users/mark_message_read.php', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-        });
+        const payload = { message_id: messageId, message_type: messageType };
+        if (messageType === 'comment' && listingType) payload.listing_type = listingType;
+        await markMessageRead(payload);
     } catch (error) {
         console.error('标记消息已读失败:', error);
     }
@@ -37,6 +28,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const result = await getMessages();
         
+        const countDebug = (result && result.debug && result.debug.count_by_type) || null;
+        const totalCount = (result && result.data) ? result.data.length : 0;
+        const reviewCount = countDebug ? (countDebug.claim_approved || 0) + (countDebug.claim_rejected || 0) : 0;
+        const section = document.getElementById('messages-section');
+        if (section) {
+            const oldSummary = section.querySelector('.message-summary');
+            if (oldSummary) oldSummary.remove();
+            const title = section.querySelector('h2');
+            if (title) {
+                const sum = document.createElement('div');
+                sum.className = 'message-summary';
+                const chips = [
+                    ['total', `总未读 ${totalCount} 条`, totalCount > 0],
+                    ['match', `匹配 ${countDebug ? (countDebug.match || 0) : (result.data.filter(m=>m.type==='match').length)}`, true],
+                    ['comment', `评论 ${countDebug ? (countDebug.comment || 0) : (result.data.filter(m=>m.type==='comment').length)}`, true],
+                    ['claim', `认领申请 ${countDebug ? (countDebug.claim || 0) : (result.data.filter(m=>m.type==='claim').length)}`, true],
+                    ['review', `审核结果 ${reviewCount !== null ? reviewCount : (result.data.filter(m=>m.type==='claim_approved'||m.type==='claim_rejected').length)}`, true]
+                ];
+                chips.forEach(([cls, txt, show]) => {
+                    if (!show) return;
+                    const c = document.createElement('span');
+                    c.className = `stat-chip ${cls}`;
+                    c.textContent = txt;
+                    sum.appendChild(c);
+                });
+                title.insertAdjacentElement('afterend', sum);
+            }
+        }
+
         console.log('API响应:', result);
         
         const commentMessages = [];

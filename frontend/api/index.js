@@ -116,4 +116,5 @@ export const getMyClaims = () => apiCall('/listings/get_my_claims.php', { method
 export const postComment = (listingId, content, type) => apiCall('/comments/post_comment.php', { method: 'POST', body: objectToFormData({ listing_id: listingId, content, type }) });
 
 // --- Message Endpoints ---
-export const getMessages = () => apiCall('/users/get_messages.php', { method: 'GET' }); 
+export const getMessages = () => apiCall('/users/get_messages.php', { method: 'GET' });
+export const markMessageRead = (payload) => apiCall('/users/mark_message_read.php', { method: 'POST', body: objectToFormData(payload) });

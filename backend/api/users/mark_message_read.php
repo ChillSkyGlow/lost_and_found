@@ -53,12 +53,15 @@ try {
             exit;
         }
 
-        $sql = "UPDATE $table_name SET is_read = 1 WHERE comment_id = ?";
+        $listing_fk = ($listing_type === 'lost') ? 'lost_listing_id' : 'found_listing_id';
+        $item_table = ($listing_type === 'lost') ? 'lost_listings' : 'found_listings';
+        $item_fk = ($listing_type === 'lost') ? 'lost_listing_id' : 'found_listing_id';
+        $sql = "UPDATE $table_name c JOIN $item_table l ON c.$listing_fk = l.$item_fk SET c.is_read = 1 WHERE c.comment_id = ? AND l.user_id = ?";
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             throw new Exception("准备更新 $table_name 查询失败: " . $conn->error);
         }
-        $stmt->bind_param('i', $message_id);
+        $stmt->bind_param('ii', $message_id, $user_id);
         $stmt->execute();
         $stmt->close();
     }
