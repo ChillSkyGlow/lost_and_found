@@ -1322,11 +1322,20 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   1. 扩展名白名单：`{jpg,jpeg,png,gif}`
   2. `finfo_open(FILEINFO_MIME_TYPE)` 真实内容 MIME ∈ `{image/jpeg,image/png,image/gif}`
   3. 扩展名与 MIME 一致性（`$mime_to_ext` 表：image/jpeg↔jpg/jpeg，image/png↔png，image/gif↔gif）；.png 扩展名内容为 image/jpeg 会被拒绝
-- 匹配与邮件：调用 `find_and_notify_matches()`：
-  - 查询对方表：`SELECT * FROM opposite_table WHERE item_name LIKE CONCAT('%',item_name,'%') LIMIT 10`
-  - 双向发送 PHPMailer 邮件：失主→"您的失物可能已找到！"，拾主→"您发布的招领物品可能找到了失主！"
-  - **邮件失败只 error_log，不影响主流程返回 success**
-- **此版本不写入 matched_notifications**
+- 匹配与通知：调用 `find_and_notify_matches($conn, $listing_id, $type, $item_name, $category, $location_details, $event_time, $user_id)`：
+  - 4 维 WHERE 条件（AND 组合）：
+    1. `user_id != 当前用户`（不自匹配）
+    2. `status = 正确值`（失物查招领→unclaimed；招领查失物→pending）
+    3. `category = ?`（物品类别精确匹配）
+    4. `(item_name/location_details 中文分词后逐关键词 OR LIKE 对方 item_name + description + location_details)`（`preg_replace` 把中英文标点替换为空格，`explode` 后 `array_filter` 取长度≥1的唯一关键词，每关键词生成三段 LIKE）
+    5. `ABS(DATEDIFF(event_time, ?)) <= 7`（事件时间 ±7 天窗口）
+    6. `LIMIT 10` + `ORDER BY created_at DESC`
+  - 预处理方式：`bind_param` 动态拼接类型串（$params 数组 + $types 字符串），全参数绑定，无 SQL 拼接
+  - 命中后执行 3 种联动写操作：
+    a) **matches 匹配对表**：`INSERT IGNORE INTO matches (lost_listing_id, found_listing_id, match_score) VALUES (?, ?, 1.0)`，依赖 UNIQUE KEY (lost,found) 天然去重，match_score=1.0 表示命中 4 维
+    b) **双向 matched_notifications 站内通知**：先 SELECT 5 键去重，num_rows=0 才 INSERT is_read=0；通知方向为「先发布者收到新物品匹配通知」+「后发布者收到现有物品匹配通知」，bind_param 类型 `iisis`，模式与 publish_listing.php L155-185 完全一致
+    c) **双向 PHPMailer 邮件**：失主→"您的失物可能已找到！"，拾主→"您发布的招领物品可能找到了失主！"；**邮件失败仅 error_log，不影响主流程返回 success**
+  - 失败兜底：`prepare` 失败 → error_log 记录 SQL + $conn->error 后 return；各块异常 try/catch 后 error_log，不中断主流程
 - `comment_is_updated` 显式写入 `0`，不依赖数据库 `DEFAULT 0`
 - 错误处理：自定义 `exception_handler` + `error_handler` + `ob_start` 缓冲
 - `ini_set display_errors=0`，只记录 `E_ERROR`
@@ -1337,7 +1346,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 - **招领发布（listing_type=found）分支差异**：
   - 写入表：`found_listings`（12 列与 `lost_listings` 完全同构，仅主键名和 status enum 不同）
   - 初始 status：`unclaimed`（失物为 `pending`）
-  - 匹配算法反向：对端表 = `lost_listings`，`find_and_notify_matches()` 中 `match_table_name = 'lost_listings'` 反向 LIKE 匹配
+  - 匹配算法反向：对端表 = `lost_listings`，`find_and_notify_matches()` 中 `match_table_name = 'lost_listings'` 反向 4 维匹配 + 双向通知 + 邮件
   - 双向邮件：失主 → "可能找到失物"；拾主 → "可能找到失主"（与失物发布逻辑同构，仅匹配对端互换）
 
 ---

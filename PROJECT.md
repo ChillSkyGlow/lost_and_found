@@ -43,7 +43,7 @@
 | 2 | **失物信息发布功能** | 用户可发布丢失物品的信息，包括：物品名称、物品类别、丢失时间、丢失地点、物品特征、图片等。 | **已实现**（publish_secure.php：支持 item_name / category / lost_date / location / description / 图片上传 / 地图坐标 lng,lat） |
 | 3 | **招领信息发布功能** | 用户可发布捡到物品的信息，包括：拾取时间、拾取地点、物品类别、物品描述、图片等。 | **已实现**（同上，通过 listing_type = 'found' 区分） |
 | 4 | **信息查询功能** | 按物品名称 / 物品类别 / 地点 / 发布时间查询；支持模糊查询；支持多条件查询。 | **已实现**（get_listings.php：search 模糊匹配 item_name + description LIKE；filter 分类；date 日期；lat/lon/radius 地理 Haversine；sort 排序；多条件可任意组合） |
-| 5 | **信息匹配功能** | 根据物品名称 / 类别 / 地点 / 时间对失物信息和招领信息进行简单匹配，向用户展示可能相关的信息。 | **部分实现**（当前发布匹配有两套：①publish_secure = item_name LIKE + 邮件 + 有 category 但不比对地点/时间；②publish_listing = 分词+时间±7天 + 写 matched_notifications + 无 category；get_matched_listings 页面端展示；**地点、类别与时间四维联动匹配**未在一个实现中完整覆盖） |
+| 5 | **信息匹配功能** | 根据物品名称 / 类别 / 地点 / 时间对失物信息和招领信息进行简单匹配，向用户展示可能相关的信息。 | **已实现**（publish_secure.php 的 find_and_notify_matches：category 精确匹配 + (item_name/location_details) 中文分词后逐关键词 LIKE 对方 item_name+description+location_details + event_time ABS(DATEDIFF)≤7 天；命中后同时：①INSERT IGNORE 写入 matches 匹配对表 match_score=1.0；②双向 matched_notifications 去重写入通知；③原有双向邮件。前端 profile.html 「匹配度较高的物品」+ messages.html 「匹配消息」+ 主页 Banner「新消息」提示均已打通） |
 | 6 | **认领申请功能** | 失主可以对招领信息提交认领申请，并填写：物品特征、丢失经过、其他验证信息。 | **待实现**（当前仅：①评论区 post_comment 可留言；②solve 表结构已在 DB_create.sql 定义；③前端没有独立"提交认领申请"表单/流程；④无 status=processing 的申请状态流转） |
 | 7 | **认领审核功能** | 发布招领信息的用户可以查看认领申请、根据申请内容选择通过或拒绝。 | **待实现**（当前仅 update_listing_status 把 found→claimed 的单用户操作；solve 表的 processing→completed 审核流程未在前端/API 实现，无"申请列表"和"通过/拒绝按钮"） |
 | 8 | **个人中心功能** | 用户可查看自己发布的失物信息、自己发布的招领信息、认领记录；并可对未完成信息进行修改、删除。 | **部分实现**（profile.html 可查看我的失物/招领 + 匹配 + 编辑/删除；**认领记录查询** 对应 solve 表，但当前无前端页面；"进行中/已完成" 分类已有） |

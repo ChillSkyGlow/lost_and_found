@@ -113,14 +113,14 @@ try {
 
     // 获取数据库连接
     $conn = get_db_connection();
-    
+
     // 设置默认图像路径为null
     $image_file_path = null;
 
     // 处理图片上传
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = '../../uploads/';
-        
+
         // 确保上传目录存在
         if (!is_dir($upload_dir)) {
             if (!mkdir($upload_dir, 0777, true)) {
@@ -191,7 +191,7 @@ try {
 
     // 准备插入语句（2026-09-05 功能2 新增 comment_is_updated 列，显式写入 0）
     $sql = "INSERT INTO {$table_name} (user_id, item_name, description, location_details, location_coordinates, event_time, image_file_path, status, category, comment_is_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    
+
     // 准备并执行查询
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -212,20 +212,20 @@ try {
 
     $listing_id = $stmt->insert_id;
     $stmt->close();
-    
-    // 物品发布成功后，查找匹配并发送通知
-    find_and_notify_matches($conn, $listing_id, $type, $item_name);
+
+    // 物品发布成功后，按 4 维（item_name + category + location + 时间±7天）查找匹配并发送双向邮件 + 站内匹配通知
+    find_and_notify_matches($conn, $listing_id, $type, $item_name, $category, $location_details, $event_time, $user_id);
 
     $conn->close();
 
     // 返回成功响应
     header('Content-Type: application/json');
     echo json_encode([
-        'success' => true, 
-        'message' => '发布成功！', 
+        'success' => true,
+        'message' => '发布成功！',
         'data' => ['listing_id' => $listing_id]
     ]);
-    
+
 } catch (Exception $e) {
     // 捕获并处理任何未预见的异常
     header('Content-Type: application/json');
@@ -236,29 +236,123 @@ try {
     if (ob_get_level() > 0) {
         ob_end_flush();
     }
-} 
+}
 
-function find_and_notify_matches($conn, $new_listing_id, $new_listing_type, $item_name) {
+function find_and_notify_matches($conn, $new_listing_id, $new_listing_type, $item_name, $category, $location_details, $event_time, $user_id) {
     try {
         $match_table_name = $new_listing_type == 'lost' ? 'found_listings' : 'lost_listings';
         $match_id_col = $new_listing_type == 'lost' ? 'found_listing_id' : 'lost_listing_id';
+        $match_status = $new_listing_type == 'lost' ? 'unclaimed' : 'pending';
 
-        $sql_match = "SELECT * FROM {$match_table_name} WHERE item_name LIKE ?";
+        $params = [];
+        $types = '';
+        $sql_match = "SELECT * FROM {$match_table_name} WHERE user_id != ? AND status = ? AND category = ?";
+        $params[] = $user_id; $types .= 'i';
+        $params[] = $match_status; $types .= 's';
+        $params[] = $category; $types .= 's';
+
+        $combined = trim($item_name . ' ' . $location_details);
+        if ($combined !== '') {
+            $keywords = array_filter(explode(' ', preg_replace('/[，。,.!！?？、\s]/u', ' ', $combined)));
+            $keywords = array_values(array_unique(array_filter($keywords, function($w) { return mb_strlen($w) >= 1; })));
+        } else {
+            $keywords = [];
+        }
+        if (count($keywords) > 0) {
+            $kw_clauses = [];
+            foreach ($keywords as $kw) {
+                $kw_clauses[] = "(item_name LIKE ? OR description LIKE ? OR location_details LIKE ?)";
+                $kw_like = '%' . $kw . '%';
+                $params[] = $kw_like; $types .= 's';
+                $params[] = $kw_like; $types .= 's';
+                $params[] = $kw_like; $types .= 's';
+            }
+            $sql_match .= " AND (" . implode(' OR ', $kw_clauses) . ")";
+        }
+
+        if ($event_time) {
+            $sql_match .= " AND ABS(DATEDIFF(event_time, ?)) <= 7";
+            $params[] = $event_time; $types .= 's';
+        }
+        $sql_match .= " ORDER BY created_at DESC LIMIT 10";
+
         $stmt_match = $conn->prepare($sql_match);
-        $item_name_like = '%' . $item_name . '%';
-        $stmt_match->bind_param("s", $item_name_like);
+        if (!$stmt_match) {
+            error_log("匹配查询 prepare 失败: " . $conn->error . " SQL=" . $sql_match);
+            return;
+        }
+        if (count($params) > 0) {
+            $stmt_match->bind_param($types, ...$params);
+        }
         $stmt_match->execute();
         $result_match = $stmt_match->get_result();
 
         while ($match = $result_match->fetch_assoc()) {
-            $lost_listing_id = ($new_listing_type == 'lost') ? $new_listing_id : $match[$match_id_col];
-            $found_listing_id = ($new_listing_type == 'found') ? $new_listing_id : $match[$match_id_col];
-            
-            // 新增：发送邮件通知
+            $match_listing_id = $match[$match_id_col];
+            $match_owner_id = $match['user_id'];
+            $match_listing_type = $new_listing_type == 'lost' ? 'found' : 'lost';
+
+            $lost_listing_id = ($new_listing_type == 'lost') ? $new_listing_id : $match_listing_id;
+            $found_listing_id = ($new_listing_type == 'found') ? $new_listing_id : $match_listing_id;
+
+            // a) 写入 matches 匹配对表（UNIQUE KEY lost_found 去重），match_score = 1.0（命中 4 维）
             try {
-                // 1. 获取双方用户的邮箱和物品信息
+                $sql_pair = "INSERT IGNORE INTO matches (lost_listing_id, found_listing_id, match_score) VALUES (?, ?, 1.0)";
+                $stmt_pair = $conn->prepare($sql_pair);
+                $stmt_pair->bind_param("ii", $lost_listing_id, $found_listing_id);
+                $stmt_pair->execute();
+                $stmt_pair->close();
+            } catch (Exception $e) {
+                error_log("写入 matches 匹配对失败: " . $e->getMessage());
+            }
+
+            // b) 双向写入 matched_notifications 站内匹配通知（先去重）— 复用 publish_listing 模式
+            try {
+                // 方向1：通知先发布者（match_owner_id）：他们已有的物品（match_id / match_type）与一个新物品（new_id / new_type）匹配
+                $check_sql_1 = "SELECT id FROM matched_notifications
+                    WHERE user_id = ? AND listing_id = ? AND listing_type = ?
+                      AND source_listing_id = ? AND source_listing_type = ?";
+                $check_stmt_1 = $conn->prepare($check_sql_1);
+                $check_stmt_1->bind_param('iisis', $match_owner_id, $new_listing_id, $new_listing_type, $match_listing_id, $match_listing_type);
+                $check_stmt_1->execute();
+                $check_result_1 = $check_stmt_1->get_result();
+                if ($check_result_1->num_rows == 0) {
+                    $insert_sql_1 = "INSERT INTO matched_notifications
+                        (user_id, listing_id, listing_type, source_listing_id, source_listing_type, is_read)
+                        VALUES (?, ?, ?, ?, ?, 0)";
+                    $insert_stmt_1 = $conn->prepare($insert_sql_1);
+                    $insert_stmt_1->bind_param('iisis', $match_owner_id, $new_listing_id, $new_listing_type, $match_listing_id, $match_listing_type);
+                    $insert_stmt_1->execute();
+                    $insert_stmt_1->close();
+                }
+                $check_stmt_1->close();
+
+                // 方向2：通知后发布者（当前用户 user_id）：他们刚发布的新物品（new_id / new_type）与一个已存在物品（match_id / match_type）匹配
+                $check_sql_2 = "SELECT id FROM matched_notifications
+                    WHERE user_id = ? AND listing_id = ? AND listing_type = ?
+                      AND source_listing_id = ? AND source_listing_type = ?";
+                $check_stmt_2 = $conn->prepare($check_sql_2);
+                $check_stmt_2->bind_param('iisis', $user_id, $match_listing_id, $match_listing_type, $new_listing_id, $new_listing_type);
+                $check_stmt_2->execute();
+                $check_result_2 = $check_stmt_2->get_result();
+                if ($check_result_2->num_rows == 0) {
+                    $insert_sql_2 = "INSERT INTO matched_notifications
+                        (user_id, listing_id, listing_type, source_listing_id, source_listing_type, is_read)
+                        VALUES (?, ?, ?, ?, ?, 0)";
+                    $insert_stmt_2 = $conn->prepare($insert_sql_2);
+                    $insert_stmt_2->bind_param('iisis', $user_id, $match_listing_id, $match_listing_type, $new_listing_id, $new_listing_type);
+                    $insert_stmt_2->execute();
+                    $insert_stmt_2->close();
+                }
+                $check_stmt_2->close();
+            } catch (Exception $e) {
+                error_log("写入 matched_notifications 失败: " . $e->getMessage());
+            }
+
+            // c) 发送邮件通知（保持原逻辑，不影响主流程）
+            try {
                 $sql_users_info = "
-                    SELECT 
+                    SELECT
                         l.item_name as lost_item_name, u_lost.email as lost_user_email,
                         f.item_name as found_item_name, u_found.email as found_user_email
                     FROM lost_listings l
@@ -273,12 +367,10 @@ function find_and_notify_matches($conn, $new_listing_id, $new_listing_type, $ite
                 $users_info = $stmt_users->get_result()->fetch_assoc();
 
                 if ($users_info) {
-                    // 2. 发送邮件给失主
                     $subject_to_lost = "您的失物可能已找到！";
                     $body_to_lost = "您发布的失物 '{$users_info['lost_item_name']}' 与一个新发布的招领 '{$users_info['found_item_name']}' 匹配。<br><br>请登录平台查看详情并确认。";
                     send_notification_email($users_info['lost_user_email'], $subject_to_lost, $body_to_lost);
 
-                    // 3. 发送邮件给拾主
                     $subject_to_found = "您发布的招领物品可能找到了失主！";
                     $body_to_found = "您发布的招领 '{$users_info['found_item_name']}' 与一个失物 '{$users_info['lost_item_name']}' 匹配。<br><br>请登录平台查看详情并等待对方联系。";
                     send_notification_email($users_info['found_user_email'], $subject_to_found, $body_to_found);
@@ -286,7 +378,6 @@ function find_and_notify_matches($conn, $new_listing_id, $new_listing_type, $ite
                 $stmt_users->close();
 
             } catch (Exception $e) {
-                // 邮件发送失败不应影响主流程，记录错误即可
                 error_log("匹配邮件发送失败: " . $e->getMessage());
             }
         }
