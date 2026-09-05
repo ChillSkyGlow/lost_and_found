@@ -1331,6 +1331,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 - 错误处理：自定义 `exception_handler` + `error_handler` + `ob_start` 缓冲
 - `ini_set display_errors=0`，只记录 `E_ERROR`
 - **前端当前调用的是此 API**（`frontend/pages/publish.js` 直接 fetch 此文件，不走 `api/index.js` 的备用封装）
+- **前端视角文案动态化（功能3 招领发布）**：`frontend/pages/publish.js` 监听 `#type-lost / #type-found` radio 的 change 事件，切换 5 处 DOM 文本/占位符：
+  - 失物视角（type=lost）：label `丢失地点详情` / `丢失时间` / placeholder `丢失经过...可能丢失的具体位置`
+  - 招领视角（type=found）：label `拾获地点详情` / `拾获时间` / placeholder `拾获经过...当前保管方式`
+- **招领发布（listing_type=found）分支差异**：
+  - 写入表：`found_listings`（12 列与 `lost_listings` 完全同构，仅主键名和 status enum 不同）
+  - 初始 status：`unclaimed`（失物为 `pending`）
+  - 匹配算法反向：对端表 = `lost_listings`，`find_and_notify_matches()` 中 `match_table_name = 'lost_listings'` 反向 LIKE 匹配
+  - 双向邮件：失主 → "可能找到失物"；拾主 → "可能找到失主"（与失物发布逻辑同构，仅匹配对端互换）
 
 ---
 

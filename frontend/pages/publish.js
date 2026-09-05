@@ -4,6 +4,40 @@ import { showMessage } from '../utils/dom.js';
 import { checkSessionAndSetupHeader } from './auth.js';
 import { initializeMap } from '../utils/map.js';
 
+// --- 文案映射表：失物视角 vs 招领视角（功能3：招领信息发布动态化）---
+const UI_TEXT = {
+  lost: {
+    descriptionLabel: '详细描述（物品特征、丢失经过等）',
+    descriptionPlaceholder: '请详细描述物品的外观、颜色、特殊标记、丢失经过、可能丢失的具体位置等信息，便于他人辨认。',
+    locationDetailsLabel: '丢失地点详情',
+    mapLabel: '在地图上标记丢失位置（请点击地图）',
+    eventTimeLabel: '丢失时间'
+  },
+  found: {
+    descriptionLabel: '详细描述（物品特征、拾获经过、保管方式等）',
+    descriptionPlaceholder: '请详细描述物品的外观、颜色、特殊标记、拾获具体时间地点、当前保管方式等信息，便于失主核实。',
+    locationDetailsLabel: '拾获地点详情',
+    mapLabel: '在地图上标记拾获位置（请点击地图）',
+    eventTimeLabel: '拾获时间'
+  }
+};
+
+// --- 切换发布视角文案：失物/招领 ---
+function switchListingType(type) {
+  const text = UI_TEXT[type] || UI_TEXT.lost;
+  const descLabel = $('#description-label');
+  const descEl = $('#description');
+  const locLabel = $('#location-details-label');
+  const mapLabel = $('#map-label');
+  const timeLabel = $('#event-time-label');
+
+  if (descLabel) descLabel.textContent = text.descriptionLabel;
+  if (descEl) descEl.placeholder = text.descriptionPlaceholder;
+  if (locLabel) locLabel.textContent = text.locationDetailsLabel;
+  if (mapLabel) mapLabel.textContent = text.mapLabel;
+  if (timeLabel) timeLabel.textContent = text.eventTimeLabel;
+}
+
 // --- 天地图API异步加载器 ---
 function loadTiandituApi() {
     return new Promise((resolve, reject) => {
@@ -66,6 +100,17 @@ async function testPublishAPI() {
 document.addEventListener('DOMContentLoaded', async () => {
     await checkSessionAndSetupHeader();
     
+    // --- 功能3：初始化视角文案 + radio 切换监听 ---
+    const typeLost = $('#type-lost');
+    const typeFound = $('#type-found');
+    const applyInitial = () => {
+      if (typeLost && typeLost.checked) switchListingType('lost');
+      else if (typeFound && typeFound.checked) switchListingType('found');
+    };
+    applyInitial();
+    if (typeLost) typeLost.addEventListener('change', () => typeLost.checked && switchListingType('lost'));
+    if (typeFound) typeFound.addEventListener('change', () => typeFound.checked && switchListingType('found'));
+
     try {
         await loadTiandituApi();
         // API加载成功后才初始化地图

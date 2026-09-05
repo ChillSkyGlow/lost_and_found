@@ -58,16 +58,16 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="description">详细描述（物品特征、丢失经过等）</label>
+                    <label for="description" id="description-label">详细描述（物品特征、丢失经过等）</label>
                     <textarea id="description" name="description" rows="4" required placeholder="请详细描述物品的外观、颜色、特殊标记、丢失经过、可能丢失的具体位置等信息，便于他人辨认。"></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="location-details">地点详情</label>
+                    <label for="location-details" id="location-details-label">地点详情</label>
                     <input type="text" id="location-details" name="location_details" required>
                 </div>
                 
                 <div class="form-group">
-                    <label>在地图上标记位置 (请点击地图)</label>
+                    <label id="map-label">在地图上标记位置 (请点击地图)</label>
                     <div id="map-container" style="height: 400px; width: 100%; border: 1px solid #ddd;"></div>
                     <!-- 这个隐藏输入框用于存储坐标并随表单提交 -->
                     <input type="hidden" id="location-coordinates" name="location_coordinates">
@@ -75,7 +75,7 @@
                 
 
                 <div class="form-group">
-                    <label for="event-time">丢失/拾获时间</label>
+                    <label for="event-time" id="event-time-label">丢失/拾获时间</label>
                     <input type="datetime-local" id="event-time" name="event_time" required>
                 </div>
                 <div class="form-group">
